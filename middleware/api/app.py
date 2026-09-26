@@ -1,5 +1,6 @@
 import uvicorn
 from fastapi import APIRouter, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from middleware.api.objects_factory import ObjectsFactory
@@ -24,6 +25,16 @@ class App:
         self.api.add_middleware(
             TrustedHostMiddleware,
             allowed_hosts=self.config.get_api_allowed_hosts(),
+        )
+        self.api.add_middleware(
+            CORSMiddleware,
+            allow_origins=[
+                "http://127.0.0.1:4200",
+                "http://localhost:4200",
+            ],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
         )
 
     def run(self) -> None:

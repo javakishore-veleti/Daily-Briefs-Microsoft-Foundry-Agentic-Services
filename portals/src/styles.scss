@@ -1,0 +1,271 @@
+:root {
+  --ink: #143d36;
+  --ink-deep: #0c3f34;
+  --paper: #fff8f0;
+  --paper-deep: #f6e7d4;
+  --rail: #0f5c4c;
+  --rail-ink: #fff6ea;
+  --rail-soft: #1c7a64;
+  --accent: #c45c26;
+  --accent-deep: #9a4318;
+  --line: #e4c49a;
+  --user: #e5f4ec;
+  --assistant: #fffdf8;
+  --danger: #9d342c;
+  --danger-paper: #fde8e2;
+  font-family: "Iowan Old Style", Palatino, "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+button,
+textarea,
+a {
+  font: inherit;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 100vh;
+}
+
+.rail {
+  background: var(--rail);
+  color: var(--rail-ink);
+  padding: 28px 18px;
+}
+
+.brand {
+  margin: 0;
+  font-size: 1.35rem;
+  letter-spacing: 0.01em;
+}
+
+.brand-note {
+  margin: 6px 0 28px;
+  color: #f3d7b4;
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.menu-link {
+  color: var(--rail-ink);
+  text-decoration: none;
+  border: 1px solid #f3d7b4;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: var(--rail-soft);
+}
+
+.menu-active {
+  background: var(--accent);
+  border-color: #f6c7a4;
+  color: #fff8f0;
+}
+
+.stage {
+  min-width: 0;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+}
+
+.history {
+  border-right: 1px solid var(--line);
+  background: #fff1e2;
+  padding: 22px 16px;
+}
+
+.new-chat,
+.composer button {
+  background: var(--accent);
+  color: #fff8f0;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+.new-chat {
+  width: 100%;
+}
+
+.new-chat:hover,
+.composer button:hover {
+  background: var(--accent-deep);
+}
+
+.history-label,
+.history-empty,
+.welcome,
+.pending,
+.usage,
+.conversation-head p {
+  color: #8a4b22;
+}
+
+.history-label {
+  margin: 22px 0 8px;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.history ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.thread {
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.thread-active {
+  background: #fffdf8;
+  border-color: var(--line);
+}
+
+.conversation {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top right, #ffe7cc, transparent 32%),
+    var(--paper);
+}
+
+.conversation-head {
+  padding: 22px 28px 0;
+}
+
+.conversation-head h1,
+.missing h1 {
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink-deep);
+}
+
+.transcript {
+  flex: 1;
+  overflow: auto;
+  padding: 18px 28px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bubble {
+  max-width: 720px;
+  background: var(--assistant);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 14px 16px;
+}
+
+.bubble-user {
+  align-self: flex-end;
+  background: var(--user);
+  border-color: #b7dcc8;
+}
+
+.bubble-failed {
+  background: var(--danger-paper);
+  border-color: #e7b2a8;
+}
+
+.who {
+  margin: 0 0 6px;
+  color: var(--accent-deep);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.body {
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.body a {
+  color: #0e6b8a;
+}
+
+.usage {
+  margin: 10px 0 0;
+  font-size: 0.82rem;
+}
+
+.composer {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: end;
+  padding: 12px 28px 22px;
+}
+
+.composer textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fffdf8;
+  color: var(--ink);
+  padding: 12px 14px;
+}
+
+.composer button:disabled,
+.new-chat:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.missing {
+  padding: 48px;
+}
+
+.missing a {
+  color: #0e6b8a;
+}
+
+@media (max-width: 860px) {
+  .shell,
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .rail,
+  .history {
+    border-right: 0;
+  }
+}

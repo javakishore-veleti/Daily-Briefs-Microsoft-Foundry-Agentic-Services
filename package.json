@@ -4,6 +4,12 @@
   "scripts": {
     "local:middleware:start": "sh scripts/local-middleware.sh start",
     "local:middleware:stop": "sh scripts/local-middleware.sh stop",
-    "local:middleware:status": "sh scripts/local-middleware.sh status"
+    "local:middleware:status": "sh scripts/local-middleware.sh status",
+    "local:portals:start": "sh scripts/local-portals.sh start",
+    "local:portals:stop": "sh scripts/local-portals.sh stop",
+    "local:portals:status": "sh scripts/local-portals.sh status",
+    "local:run-all": "sh scripts/local-run-all.sh",
+    "local:stop-all": "sh scripts/local-stop-all.sh",
+    "local:status-all": "sh scripts/local-status-all.sh"
   }
 }

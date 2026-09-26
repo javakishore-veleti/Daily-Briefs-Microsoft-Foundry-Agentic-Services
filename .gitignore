@@ -152,6 +152,8 @@ activemq-data/
 .envrc
 .middleware.pid
 .middleware.log
+.portals.pid
+.portals.log
 logs/
 .venv
 env/

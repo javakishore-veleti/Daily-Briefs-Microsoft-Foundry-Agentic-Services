@@ -1,0 +1,66 @@
+@if (!menu()) {
+  <section class="missing">
+    <h1>This brief is not available.</h1>
+    <a routerLink="/web-search">Open Web Search</a>
+  </section>
+} @else {
+  <section class="workspace">
+    <aside class="history">
+      <button type="button" class="new-chat" (click)="newChat()">New chat</button>
+      <p class="history-label">Conversations</p>
+      @if (threads().length === 0) {
+        <p class="history-empty">No chats yet.</p>
+      }
+      <ul>
+        @for (thread of threads(); track thread.id) {
+          <li>
+            <button
+              type="button"
+              class="thread"
+              [class.thread-active]="thread.id === active()?.id"
+              (click)="openChat(thread.id)"
+            >
+              {{ thread.title }}
+            </button>
+          </li>
+        }
+      </ul>
+    </aside>
+    <section class="conversation">
+      <header class="conversation-head">
+        <h1>{{ menu()?.label }}</h1>
+        <p>{{ menu()?.description }}</p>
+      </header>
+      <div class="transcript" #transcript>
+        @if (isEmpty()) {
+          <p class="welcome">Start a chat. Each new chat keeps its own history.</p>
+        }
+        @for (item of active()?.messages ?? []; track item.id) {
+          <article class="bubble" [class.bubble-user]="item.role === 'user'" [class.bubble-failed]="item.failed">
+            <p class="who">{{ item.role === 'user' ? 'You' : 'Web Search' }}</p>
+            <div class="body" [innerHTML]="html(item.text)"></div>
+            @if (item.role === 'assistant' && item.totalTokens !== undefined) {
+              <p class="usage">
+                {{ item.inputTokens }} input · {{ item.outputTokens }} output · {{ item.totalTokens }} total
+              </p>
+            }
+          </article>
+        }
+        @if (sending()) {
+          <p class="pending">Searching…</p>
+        }
+      </div>
+      <form class="composer" (submit)="$event.preventDefault(); send()">
+        <textarea
+          rows="3"
+          [value]="draft()"
+          (input)="onDraft($event)"
+          (keydown)="onComposerKey($event)"
+          placeholder="Ask a question"
+          [disabled]="sending()"
+        ></textarea>
+        <button type="submit" [disabled]="sending() || !draft().trim()">Send</button>
+      </form>
+    </section>
+  </section>
+}
