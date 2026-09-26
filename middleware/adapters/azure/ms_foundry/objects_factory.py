@@ -65,7 +65,14 @@ class ObjectsFactory:
         logger = get_logger(__name__)
         try:
             agent: AgentDetails | AgentVersionDetails = project_client.agents.get(agent_name)
-            logger.info("agent_name=%s found", agent_name)
+            if self._agent_needs_version_update(agent_name, agent):
+                agent = project_client.agents.create_version(
+                    agent_name=agent_name,
+                    definition=definition,
+                )
+                logger.info("agent_name=%s version updated", agent_name)
+            else:
+                logger.info("agent_name=%s found", agent_name)
         except ResourceNotFoundError:
             agent = project_client.agents.create_version(
                 agent_name=agent_name,
@@ -85,15 +92,15 @@ class ObjectsFactory:
             model=AppConfig.get_instance().get_model_deployment_name(),
             instructions="You are a web search assistantagent. You are tasked with searching the web for information.",
             tools=[WebSearchPreviewTool()],
-            reasoning=Reasoning(effort=AppConfig.get_instance().get_reasoning_effort()),
+            reasoning=Reasoning(effort=self._web_search_reasoning_effort()),
         )
 
     def _weather_agent_definition(self) -> PromptAgentDefinition:
         return PromptAgentDefinition(
             model=AppConfig.get_instance().get_model_deployment_name(),
-            instructions="You are a helpful Weather Agent that provides weather information using the provided OpenAPI Tool",
+            instructions=self._weather_instructions(),
             tools=[WeatherOpenApiDefTool().initialize_weather_opena_api_tool_def()],
-            reasoning=Reasoning(effort=AppConfig.get_instance().get_reasoning_effort()),
+            reasoning=Reasoning(effort=self._web_search_reasoning_effort()),
         )
 
     def _create_agent_with_api_key(self, api_key: str, agent_name: str, definition: PromptAgentDefinition) -> None:
@@ -126,6 +133,46 @@ class ObjectsFactory:
             )
             return
         logger.info("agent_name=%s created", agent_name)
+
+    def _web_search_reasoning_effort(self) -> str:
+        effort = AppConfig.get_instance().get_reasoning_effort()
+        if effort == "minimal":
+            return "low"
+        return effort
+
+    def _weather_instructions(self) -> str:
+        return (
+            "You are a weather agent. Answer only weather questions. "
+            "When the user names a city, state, or country, call the weather OpenAPI tool immediately with that place and format j1. "
+            "Reply with the temperature and sky conditions from the tool result. "
+            "Do not ask the user to confirm a location that is already named. "
+            "If the question is not about the weather, say that you only answer weather questions and ask for a city. "
+            "Do not search the web, do not offer a web search, and do not answer questions about people."
+        )
+
+    def _latest_definition(self, agent: AgentDetails | AgentVersionDetails):
+        versions = getattr(agent, "versions", None)
+        getter = getattr(versions, "get", None)
+        latest = getter("latest") if callable(getter) else None
+        definition = getattr(latest, "definition", None)
+        if definition is None:
+            return getattr(agent, "definition", None)
+        return definition
+
+    def _agent_needs_version_update(self, agent_name: str, agent: AgentDetails | AgentVersionDetails) -> bool:
+        definition = self._latest_definition(agent)
+        if agent_name == AGENT_NAME_WEB_SEARCH:
+            reasoning = getattr(definition, "reasoning", None)
+            effort = getattr(reasoning, "effort", None)
+            current = str(getattr(effort, "value", effort) or "").lower()
+            return current == "minimal"
+        if agent_name == AGENT_NAME_WEATHER:
+            instructions = str(getattr(definition, "instructions", "") or "")
+            reasoning = getattr(definition, "reasoning", None)
+            effort = getattr(reasoning, "effort", None)
+            current = str(getattr(effort, "value", effort) or "").lower()
+            return "Reply with the temperature and sky conditions" not in instructions or current == "minimal"
+        return False
 
     def get_web_search_agent(self) -> AgentDetails | AgentVersionDetails:
         return self.objects["web_seach_agent"]

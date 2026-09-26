@@ -39,6 +39,7 @@ class ObjectsFactory:
         self.get_chat_history_mgr()
         self.get_chat_session_mgr()
         self.get_chat_user_mgr()
+        self._ensure_sessions_for_history()
 
     def get_chat_history_mgr(self) -> ChatHistoryMgr:
         return self._ensure_mgr("chat_history_mgr", ChatHistoryMgr)
@@ -48,6 +49,12 @@ class ObjectsFactory:
 
     def get_chat_user_mgr(self) -> ChatUserMgr:
         return self._ensure_mgr("chat_user_mgr", ChatUserMgr)
+
+    def _ensure_sessions_for_history(self) -> None:
+        user = self.get_chat_user_mgr().ensure_anonymous()
+        sessions = self.get_chat_session_mgr()
+        for session_id in self.get_chat_history_mgr().session_ids():
+            sessions.ensure(session_id, user.id)
 
     def _ensure_mgr[T: AbstractBaseEntity](
         self,

@@ -7,11 +7,17 @@ from uuid import uuid4
 from dotenv import load_dotenv
 from pymongo import ASCENDING, DESCENDING
 from pymongo.collection import Collection
+from pymongo.errors import DuplicateKeyError
 
 from middleware.adapters.daos.mongodb.util.db_conn_mgr import DbConnMgr
 from middleware.common.daos.interfaces import AbstractCrudDao
 from middleware.common.entity.abstract_base_entity import AbstractBaseEntity
-from middleware.common.entity.chat_history import ChatHistory, ChatSession, ChatUser
+from middleware.common.entity.chat_history import (
+    ANONYMOUS_USER_ID,
+    ChatHistory,
+    ChatSession,
+    ChatUser,
+)
 
 
 class GenericEntityMgr[T: AbstractBaseEntity](AbstractCrudDao[T]):
@@ -195,6 +201,10 @@ class ChatHistoryMgr(GenericEntityMgr[ChatHistory]):
             )
         return sessions, has_more
 
+    def session_ids(self) -> list[str]:
+        values = self._collection().distinct("chat_session_id")
+        return [str(value) for value in values if str(value or "").strip()]
+
 
 class ChatSessionMgr(GenericEntityMgr[ChatSession]):
     def __init__(self) -> None:
@@ -202,9 +212,46 @@ class ChatSessionMgr(GenericEntityMgr[ChatSession]):
         self.name = "ChatSessionMgr"
         self.description = "A mgr that can store and retrieve chat session"
 
+    def ensure(self, session_id: str, user_id: str) -> ChatSession:
+        existing = self.get(session_id)
+        if existing is not None:
+            existing.session_id = session_id
+            if not existing.user_id:
+                existing.user_id = user_id
+            self.update(existing)
+            return existing
+        session = ChatSession()
+        session.id = session_id
+        session.session_id = session_id
+        session.user_id = user_id
+        try:
+            self.store(session)
+        except DuplicateKeyError:
+            stored = self.get(session_id)
+            if stored is not None:
+                return stored
+            raise
+        return session
+
 
 class ChatUserMgr(GenericEntityMgr[ChatUser]):
     def __init__(self) -> None:
         super().__init__(ChatUser)
         self.name = "ChatUserMgr"
         self.description = "A mgr that can store and retrieve chat user"
+
+    def ensure_anonymous(self) -> ChatUser:
+        existing = self.get(ANONYMOUS_USER_ID)
+        if existing is not None:
+            return existing
+        user = ChatUser()
+        user.id = ANONYMOUS_USER_ID
+        user.name = "Anonymous"
+        try:
+            self.store(user)
+        except DuplicateKeyError:
+            stored = self.get(ANONYMOUS_USER_ID)
+            if stored is not None:
+                return stored
+            raise
+        return user

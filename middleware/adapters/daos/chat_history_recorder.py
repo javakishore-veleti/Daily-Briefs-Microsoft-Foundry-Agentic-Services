@@ -14,7 +14,11 @@ class ChatHistoryRecorder:
         assistant_text: str,
         model_name: str,
     ) -> None:
-        mgr = ObjectsFactory.get_instance().get_chat_history_mgr()
+        factory = ObjectsFactory.get_instance()
+        user = factory.get_chat_user_mgr().ensure_anonymous()
+        if session_id.strip():
+            factory.get_chat_session_mgr().ensure(session_id, user.id)
+        mgr = factory.get_chat_history_mgr()
         if user_text.strip():
             mgr.store(self._entry(app_module, session_id, conversation_id, "user", user_text, model_name))
         if assistant_text.strip():

@@ -1,3 +1,4 @@
+import json
 from typing import override
 
 from middleware.adapters.azure.azure_foundry_adapter import AzureMsFoundryAppAdapter
@@ -25,7 +26,8 @@ class WeatherInfoAdapter(AzureMsFoundryAppAdapter[WeatherInfoReq, WeatherInfoRes
             conversation_id,
         )
 
-        response = objects_factory.get_open_ai_client().responses.create(
+        client = objects_factory.get_open_ai_client()
+        response = client.responses.create(
             conversation=conversation_id,
             extra_body={
                 "agent_reference": {
@@ -35,6 +37,17 @@ class WeatherInfoAdapter(AzureMsFoundryAppAdapter[WeatherInfoReq, WeatherInfoRes
             },
             input=ctx.req.query,
         )
+        if not self._answer_text(response):
+            response = client.responses.create(
+                conversation=conversation_id,
+                extra_body={
+                    "agent_reference": {
+                        "name": AGENT_NAME_WEATHER,
+                        "type": "agent_reference",
+                    }
+                },
+                input="Reply with the temperature and sky conditions from the weather tool. Do not print the tool call.",
+            )
         usage = response.usage
         input_tokens = usage.input_tokens if usage is not None else 0
         output_tokens = usage.output_tokens if usage is not None else 0
@@ -49,7 +62,7 @@ class WeatherInfoAdapter(AzureMsFoundryAppAdapter[WeatherInfoReq, WeatherInfoRes
             if usage is not None and usage.output_tokens_details is not None
             else 0
         )
-        ctx.resp.results["output_text"] = response.output_text
+        ctx.resp.results["output_text"] = self._answer_text(response)
         ctx.resp.results["response_id"] = response.id
         ctx.resp.results["model"] = response.model
         ctx.resp.results["status"] = str(response.status)
@@ -73,3 +86,78 @@ class WeatherInfoAdapter(AzureMsFoundryAppAdapter[WeatherInfoReq, WeatherInfoRes
             reasoning_tokens,
         )
         return AppExecConstants.SUCCESS
+
+    def _answer_text(self, response: object) -> str:
+        messages: list[str] = []
+        tool_raw = ""
+        for item in getattr(response, "output", None) or []:
+            data = item.model_dump() if hasattr(item, "model_dump") else {}
+            kind = data.get("type")
+            if kind == "openapi_call_output":
+                tool_raw = self._tool_output_text(data)
+            if kind != "message":
+                continue
+            for part in data.get("content") or []:
+                if not isinstance(part, dict) or part.get("type") != "output_text":
+                    continue
+                text = str(part.get("text") or "").strip()
+                if text and not self._is_tool_trace(text):
+                    messages.append(text)
+        if messages:
+            return messages[-1]
+        forecast = self._forecast_from_tool(tool_raw)
+        if forecast:
+            return forecast
+        fallback = str(getattr(response, "output_text", "") or "").strip()
+        if fallback and not self._is_tool_trace(fallback):
+            return fallback
+        return forecast
+
+    def _tool_output_text(self, data: dict) -> str:
+        for key in ("output", "result"):
+            value = data.get(key)
+            if isinstance(value, str):
+                return value
+            if isinstance(value, list):
+                parts = [str(part.get("text") or part) for part in value if isinstance(part, (dict, str))]
+                return "\n".join(part for part in parts if part)
+        return ""
+
+    def _forecast_from_tool(self, raw: str) -> str:
+        start = raw.find("{")
+        if start < 0:
+            return ""
+        try:
+            payload = json.loads(raw[start:])
+        except json.JSONDecodeError:
+            return ""
+        current = payload.get("current_condition") if isinstance(payload, dict) else None
+        if not isinstance(current, list) or not current or not isinstance(current[0], dict):
+            return ""
+        row = current[0]
+        temp_c = str(row.get("temp_C") or "")
+        temp_f = str(row.get("temp_F") or "")
+        desc = ""
+        weather = row.get("weatherDesc")
+        if isinstance(weather, list) and weather and isinstance(weather[0], dict):
+            desc = str(weather[0].get("value") or "")
+        place = ""
+        nearest = payload.get("nearest_area")
+        if isinstance(nearest, list) and nearest and isinstance(nearest[0], dict):
+            area = nearest[0].get("areaName")
+            if isinstance(area, list) and area and isinstance(area[0], dict):
+                place = str(area[0].get("value") or "")
+        if not temp_c and not desc:
+            return ""
+        where = f" in {place}" if place else ""
+        sky = f" Sky: {desc}." if desc else ""
+        return f"Current temperature{where}: {temp_c}°C ({temp_f}°F).{sky}"
+
+    def _is_tool_trace(self, text: str) -> bool:
+        lowered = text.lower()
+        if "remote_openapi" in lowered or "remote call" in lowered or "getcurrentweather" in lowered:
+            return True
+        if lowered.startswith("(") and "weather" in lowered:
+            return True
+        stripped = text.strip()
+        return stripped.startswith("{") and "location" in stripped and "format" in stripped

@@ -1,5 +1,7 @@
 from middleware.common.entity.abstract_base_entity import AbstractBaseEntity
 
+ANONYMOUS_USER_ID = "anonymous"
+
 
 class ChatUser(AbstractBaseEntity):
     def __init__(self):
