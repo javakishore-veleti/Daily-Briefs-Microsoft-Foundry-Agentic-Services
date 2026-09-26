@@ -28,6 +28,7 @@ class AppConfig(BaseModel):
             "foundry_project_endpoint": os.getenv("FOUNDRY_PROJECT_ENDPOINT"),
             "foundry_api_key": os.getenv("FOUNDRY_API_KEY", ""),
             "model_deployment_name": os.getenv("MODEL_DEPLOYMENT_NAME"),
+            "reasoning_effort": os.getenv("REASONING_EFFORT", "minimal"),
             "api_host": os.getenv("API_HOST", "0.0.0.0"),
             "api_port": os.getenv("API_PORT", "8000"),
             "api_allowed_hosts": os.getenv("API_ALLOWED_HOSTS", "*"),
@@ -44,6 +45,16 @@ class AppConfig(BaseModel):
     def get_model_deployment_name(self) -> str:
         name = self.config.get("model_deployment_name", "")
         return name if isinstance(name, str) else ""
+
+    def get_reasoning_effort(self) -> str:
+        effort = self.config.get("reasoning_effort", "minimal")
+        if not isinstance(effort, str):
+            return "minimal"
+        normalized = effort.strip().lower()
+        allowed = {"none", "minimal", "low", "medium", "high", "xhigh", "max"}
+        if normalized in allowed:
+            return normalized
+        return "minimal"
 
     def get_api_host(self) -> str:
         host = self.config.get("api_host", "0.0.0.0")

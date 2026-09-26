@@ -4,7 +4,13 @@ import urllib.request
 from typing import TYPE_CHECKING, ClassVar
 
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
-from azure.ai.projects.models import AgentDetails, AgentVersionDetails, PromptAgentDefinition, WebSearchPreviewTool
+from azure.ai.projects.models import (
+    AgentDetails,
+    AgentVersionDetails,
+    PromptAgentDefinition,
+    Reasoning,
+    WebSearchPreviewTool,
+)
 from middleware.adapters.azure.ms_foundry.constants import AGENT_NAME_WEB_SEARCH
 from middleware.common.dtos.app_config import AppConfig
 from middleware.common.utils.logger_util import get_logger, log_methods
@@ -47,11 +53,7 @@ class ObjectsFactory:
         except ResourceNotFoundError:
             web_seach_agent = ms_foundry_project_client.agents.create_version(
                 agent_name=AGENT_NAME_WEB_SEARCH,
-                definition=PromptAgentDefinition(
-                    model=AppConfig.get_instance().get_model_deployment_name(),
-                    instructions="You are a web search assistantagent. You are tasked with searching the web for information.",
-                    tools=[WebSearchPreviewTool()],
-                )
+                definition=self._web_search_agent_definition(),
             )
             logger.info("agent_name=%s created", AGENT_NAME_WEB_SEARCH)
         except HttpResponseError:
@@ -62,15 +64,19 @@ class ObjectsFactory:
 
         self.objects["web_seach_agent"] = web_seach_agent
 
+    def _web_search_agent_definition(self) -> PromptAgentDefinition:
+        return PromptAgentDefinition(
+            model=AppConfig.get_instance().get_model_deployment_name(),
+            instructions="You are a web search assistantagent. You are tasked with searching the web for information.",
+            tools=[WebSearchPreviewTool()],
+            reasoning=Reasoning(effort=AppConfig.get_instance().get_reasoning_effort()),
+        )
+
     def _create_agent_with_api_key(self, api_key: str) -> None:
         logger = get_logger(__name__)
         endpoint = AppConfig.get_instance().get_foundry_project_endpoint().rstrip("/")
         url = f"{endpoint}/agents/{AGENT_NAME_WEB_SEARCH}/versions?api-version=v1"
-        definition = PromptAgentDefinition(
-            model=AppConfig.get_instance().get_model_deployment_name(),
-            instructions="You are a web search assistantagent. You are tasked with searching the web for information.",
-            tools=[WebSearchPreviewTool()],
-        )
+        definition = self._web_search_agent_definition()
         request = urllib.request.Request(
             url,
             data=json.dumps({"definition": definition.as_dict()}).encode(),
