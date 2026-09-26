@@ -12,6 +12,14 @@ on:
           - gpt-4o
           - gpt-5-mini
           - gpt-5.4-mini
+      still_run:
+        description: Agent Created Already In Code, Do You Still Run This Github Action?
+        required: true
+        type: choice
+        default: "no"
+        options:
+          - "no"
+          - "yes"
 
 permissions:
   contents: read
@@ -23,6 +31,7 @@ concurrency:
 jobs:
   create:
     name: Create web-search-agent
+    if: inputs.still_run == 'yes'
     runs-on: ubuntu-latest
     env:
       FOUNDRY_PROJECT_ENDPOINT: ${{ secrets.FOUNDRY_PROJECT_ENDPOINT }}
