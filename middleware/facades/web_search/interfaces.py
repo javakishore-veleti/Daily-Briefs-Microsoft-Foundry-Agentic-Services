@@ -8,5 +8,8 @@ class WebSearchTask:
 
 @log_methods
 class WebSearchFacade:
+    def initialize(self) -> None:
+        raise NotImplementedError("Subclasses must implement this method")
+
     def execute(self, ctx: WebSearchCtx) -> int:
         raise NotImplementedError("Subclasses must implement this method")

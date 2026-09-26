@@ -25,7 +25,7 @@ class ObjectsFactory:
             ObjectsFactory._instance = ObjectsFactory()
         return ObjectsFactory._instance
 
-    def init_dao_objects(self) -> None:
+    def init(self) -> None:
         self.get_chat_history_mgr()
         self.get_chat_session_mgr()
         self.get_chat_user_mgr()

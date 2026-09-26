@@ -1,8 +1,11 @@
+from typing import ClassVar
+
 import uvicorn
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
+from middleware.api.app_bootstrap import AppBootstrap
 from middleware.api.objects_factory import ObjectsFactory
 from middleware.common.dtos.app_config import AppConfig
 from middleware.common.utils.logger_util import log_methods
@@ -10,9 +13,12 @@ from middleware.common.utils.logger_util import log_methods
 
 @log_methods
 class App:
+    _instance: ClassVar["App | None"] = None
+
     def __init__(self) -> None:
         self.config = AppConfig.get_instance()
         self.config.load_config()
+        AppBootstrap.get_instance().init()
         self.api = FastAPI(
             title="Daily Briefs",
             docs_url="/docs",
@@ -37,6 +43,16 @@ class App:
             allow_headers=["*"],
         )
 
+    @staticmethod
+    def get_instance() -> "App":
+        if App._instance is None:
+            App._instance = App()
+        return App._instance
+
+    @staticmethod
+    def main() -> None:
+        App.get_instance().run()
+
     def run(self) -> None:
         uvicorn.run(
             self.api,
@@ -54,13 +70,8 @@ class App:
         return router
 
 
-application = App()
-app = application.api
-
-
-def main() -> None:
-    application.run()
+app = App.get_instance().api
 
 
 if __name__ == "__main__":
-    main()
+    App.main()

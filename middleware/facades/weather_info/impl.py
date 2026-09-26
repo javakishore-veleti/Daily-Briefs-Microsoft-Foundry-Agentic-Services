@@ -14,6 +14,7 @@ class WeatherInfoFacadeImpl(WeatherInfoFacade):
         self.tasks: list[WeatherInfoTask] = []
         self.initialized = False
 
+    @override
     def initialize(self) -> None:
         if self.initialized:
             return

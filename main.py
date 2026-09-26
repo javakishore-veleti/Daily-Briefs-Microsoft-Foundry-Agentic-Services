@@ -1,5 +1,5 @@
-from middleware.api.app import main
+from middleware.api.app import App
 
 
 if __name__ == "__main__":
-    main()
+    App.main()

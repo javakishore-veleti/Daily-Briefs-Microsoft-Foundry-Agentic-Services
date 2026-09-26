@@ -33,6 +33,10 @@ class ObjectsFactory:
         self.description = "A factory that can create objects"
         self.objects = {}
 
+    def init(self) -> None:
+        self.get_web_search_adapter()
+        self.get_weather_info_adapter()
+
     def init_ms_foundry_objects(self):
         self._ensure_agent(AGENT_NAME_WEB_SEARCH, self._web_search_agent_definition(), "web_seach_agent")
 

@@ -20,6 +20,13 @@ class ObjectsFactory:
             ObjectsFactory._instance = ObjectsFactory()
         return ObjectsFactory._instance
 
+    def init(self) -> None:
+        if self.initialized:
+            return
+        self.get_web_search_facade().initialize()
+        self.get_weather_info_facade().initialize()
+        self.initialized = True
+
     def get_web_search_facade(self) -> WebSearchFacade:
         if "web_search_facade" not in self.facades:
             self.facades["web_search_facade"] = WebSearchFacadeImpl()

@@ -10,5 +10,8 @@ class WeatherInfoTask:
 
 @log_methods
 class WeatherInfoFacade:
+    def initialize(self) -> None:
+        raise NotImplementedError("Subclasses must implement this method")
+
     def execute(self, ctx: WeatherInfoCtx) -> int:
         raise NotImplementedError("Subclasses must implement this method")

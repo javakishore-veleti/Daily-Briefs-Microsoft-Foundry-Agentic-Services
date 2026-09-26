@@ -13,6 +13,7 @@ class WebSearchFacadeImpl(WebSearchFacade):
         self.tasks: list[WebSearchTask] = []
         self.initialized = False
 
+    @override
     def initialize(self) -> None:
         if self.initialized:
             return
