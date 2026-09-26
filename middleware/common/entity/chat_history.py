@@ -17,6 +17,7 @@ class ChatSession(AbstractBaseEntity):
 class ChatHistory(AbstractBaseEntity):
     def __init__(self):
         super().__init__()
+        self.app_module:str = ""
         # Foreign key to ChatSession
         self.chat_session_id:str = ""
         self.conversation_id:str = ""

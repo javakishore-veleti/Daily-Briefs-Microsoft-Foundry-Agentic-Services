@@ -6,6 +6,7 @@ from middleware.adapters.daos.mongodb.impl.generic_entity_mgr import (
     ChatUserMgr,
     GenericEntityMgr,
 )
+from middleware.common.dtos.app_config import AppConfig
 from middleware.common.entity.abstract_base_entity import AbstractBaseEntity
 from middleware.common.utils.logger_util import log_methods
 
@@ -17,6 +18,7 @@ class ObjectsFactory:
     def __init__(self) -> None:
         self.name = "ObjectsFactory"
         self.description = "A factory that can create dao objects"
+        self.db_technology = "mongodb"
         self.objects: dict[str, GenericEntityMgr[AbstractBaseEntity]] = {}
 
     @staticmethod
@@ -26,6 +28,14 @@ class ObjectsFactory:
         return ObjectsFactory._instance
 
     def init(self) -> None:
+        self.db_technology = AppConfig.get_instance().get_db_technology()
+        if self.db_technology == "cosmosdb":
+            from middleware.adapters.daos.azure_cosmos_db.objects_factory import (
+                ObjectsFactory as CosmosObjectsFactory,
+            )
+
+            CosmosObjectsFactory.get_instance().init()
+            return
         self.get_chat_history_mgr()
         self.get_chat_session_mgr()
         self.get_chat_user_mgr()

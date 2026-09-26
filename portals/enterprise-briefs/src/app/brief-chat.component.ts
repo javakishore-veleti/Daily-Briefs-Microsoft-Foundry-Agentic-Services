@@ -5,7 +5,7 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { BriefMenu, briefById } from './briefs';
 import { BriefApi } from './brief-api.service';
 import { ChatStore } from './chat-store.service';
-import { ChatMessage, ChatThread } from './chat.models';
+import { ChatHistoryListResponse, ChatHistorySessionResponse, ChatMessage, ChatThread } from './chat.models';
 
 @Component({
   selector: 'app-brief-chat',
@@ -26,6 +26,10 @@ export class BriefChatComponent implements OnInit {
   readonly active = signal<ChatThread | undefined>(undefined);
   readonly draft = signal('');
   readonly sending = signal(false);
+  readonly hasMore = signal(false);
+
+  private historySkip = 0;
+  private readonly pageSize = 10;
 
   constructor() {
     effect(() => {
@@ -43,10 +47,16 @@ export class BriefChatComponent implements OnInit {
       if (!menu) {
         return;
       }
-      const threads = this.store.threadsFor(menu.id);
-      this.threads.set(threads);
-      this.active.set(threads[0]);
+      this.historySkip = 0;
+      this.hasMore.set(false);
+      this.threads.set([]);
+      this.active.set(undefined);
+      this.loadHistory(false);
     });
+  }
+
+  moreHistory(): void {
+    this.loadHistory(true);
   }
 
   newChat(): void {
@@ -105,6 +115,8 @@ export class BriefChatComponent implements OnInit {
         });
         this.sending.set(false);
         this.refresh(threadId);
+        this.historySkip = 0;
+        this.loadHistory(false);
       },
       error: (error: HttpErrorResponse) => {
         this.store.append(
@@ -129,6 +141,43 @@ export class BriefChatComponent implements OnInit {
     return this.sanitizer.bypassSecurityTrustHtml(linked);
   }
 
+  private loadHistory(append: boolean): void {
+    const menu = this.menu();
+    if (!menu) {
+      return;
+    }
+    const skip = append ? this.historySkip : 0;
+    this.api.history(menu.id, this.pageSize, skip).subscribe({
+      next: (response) => this.applyHistory(menu.id, response, append, skip),
+    });
+  }
+
+  private applyHistory(briefId: string, response: ChatHistoryListResponse, append: boolean, skip: number): void {
+    const incoming = response.sessions.map((session) => toThread(briefId, session));
+    const active = this.active();
+    let next = append ? [...this.store.threadsFor(briefId), ...incoming] : incoming;
+    if (!append && active && !next.some((thread) => thread.sessionId === active.sessionId)) {
+      next = [active, ...next];
+    }
+    if (active) {
+      const match = next.find((thread) => thread.sessionId === active.sessionId);
+      if (match && active.messages.length > match.messages.length) {
+        match.messages = active.messages;
+        match.title = active.title;
+      }
+    }
+    this.store.replaceBrief(briefId, next);
+    this.historySkip = skip + response.sessions.length;
+    this.hasMore.set(response.has_more);
+    this.threads.set(this.store.threadsFor(briefId));
+    if (active) {
+      const match = this.store.threadsFor(briefId).find((thread) => thread.sessionId === active.sessionId);
+      this.active.set(match ?? active);
+      return;
+    }
+    this.active.set(this.threads()[0]);
+  }
+
   private refresh(activeId: string): void {
     const menu = this.menu();
     if (!menu) {
@@ -144,6 +193,22 @@ export class BriefChatComponent implements OnInit {
       node.scrollTop = node.scrollHeight;
     }
   }
+}
+
+function toThread(briefId: string, session: ChatHistorySessionResponse): ChatThread {
+  return {
+    id: session.session_id,
+    briefId,
+    title: session.title || 'New chat',
+    sessionId: session.session_id,
+    updatedAt: session.updated_at ?? session.created_at ?? new Date().toISOString(),
+    messages: session.messages.map((item) => ({
+      id: item.id || crypto.randomUUID(),
+      role: item.role === 'user' ? 'user' : 'assistant',
+      text: item.message,
+      createdAt: item.created_at ?? new Date().toISOString(),
+    })),
+  };
 }
 
 function message(role: 'user' | 'assistant', text: string, failed = false): ChatMessage {

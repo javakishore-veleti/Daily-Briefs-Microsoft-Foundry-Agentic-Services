@@ -5,7 +5,7 @@ from typing import Any
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from pymongo import DESCENDING
+from pymongo import ASCENDING, DESCENDING
 from pymongo.collection import Collection
 
 from middleware.adapters.daos.mongodb.util.db_conn_mgr import DbConnMgr
@@ -85,14 +85,17 @@ class GenericEntityMgr[T: AbstractBaseEntity](AbstractCrudDao[T]):
         return entity
 
     def _ensure_created_at_index(self, collection: Collection) -> None:
-        name = collection.full_name
-        if name in self.indexed_collections:
+        self._ensure_index(collection, "created_at_desc", [("created_at", DESCENDING)])
+
+    def _ensure_index(self, collection: Collection, index_name: str, keys: list[tuple[str, int]]) -> None:
+        marker = f"{collection.full_name}:{index_name}"
+        if marker in self.indexed_collections:
             return
         with self.index_guard:
-            if name in self.indexed_collections:
+            if marker in self.indexed_collections:
                 return
-            collection.create_index([("created_at", DESCENDING)], name="created_at_desc")
-            self.indexed_collections.add(name)
+            collection.create_index(keys, name=index_name)
+            self.indexed_collections.add(marker)
 
 
 def collection_name_for(entity_type: type) -> str:
@@ -101,6 +104,16 @@ def collection_name_for(entity_type: type) -> str:
     if isinstance(configured, str) and configured.strip():
         return configured.strip()
     return entity_type.__name__.lower()
+
+
+def _session_title(messages: list[ChatHistory]) -> str:
+    for item in messages:
+        if item.role == "user" and item.message.strip():
+            compact = " ".join(item.message.split())
+            if len(compact) <= 42:
+                return compact
+            return f"{compact[:42].rstrip()}…"
+    return "New chat"
 
 
 def _document(entity: object) -> dict[str, Any]:
@@ -120,6 +133,67 @@ class ChatHistoryMgr(GenericEntityMgr[ChatHistory]):
         super().__init__(ChatHistory)
         self.name = "ChatHistoryMgr"
         self.description = "A mgr that can store and retrieve chat history"
+
+    def latest_sessions(self, app_module: str, limit: int = 10, skip: int = 0) -> tuple[list[dict[str, Any]], bool]:
+        self._require_init()
+        if limit < 1 or limit > self.latest_limit:
+            raise ValueError(f"limit must be from 1 to {self.latest_limit}")
+        if skip < 0:
+            raise ValueError("skip must be 0 or greater")
+        collection = self._collection()
+        self._ensure_index(
+            collection,
+            "app_module_created_at_desc",
+            [("app_module", ASCENDING), ("created_at", DESCENDING)],
+        )
+        grouped = list(
+            collection.aggregate(
+                [
+                    {"$match": {"app_module": app_module}},
+                    {
+                        "$group": {
+                            "_id": "$chat_session_id",
+                            "created_at": {"$min": "$created_at"},
+                            "updated_at": {"$max": "$created_at"},
+                            "conversation_id": {"$last": "$conversation_id"},
+                        }
+                    },
+                    {"$sort": {"updated_at": DESCENDING}},
+                    {"$skip": skip},
+                    {"$limit": limit + 1},
+                ]
+            )
+        )
+        has_more = len(grouped) > limit
+        page = grouped[:limit]
+        session_ids = [str(item.get("_id") or "") for item in page if item.get("_id")]
+        if not session_ids:
+            return [], False
+        stored = [
+            self._entity(document)
+            for document in collection.find(
+                {"app_module": app_module, "chat_session_id": {"$in": session_ids}}
+            ).sort("created_at", ASCENDING)
+        ]
+        by_session: dict[str, list[ChatHistory]] = {}
+        for item in stored:
+            by_session.setdefault(item.chat_session_id, []).append(item)
+        sessions: list[dict[str, Any]] = []
+        for item in page:
+            session_id = str(item.get("_id") or "")
+            messages = by_session.get(session_id, [])
+            conversation_id = next((message.conversation_id for message in reversed(messages) if message.conversation_id), "")
+            sessions.append(
+                {
+                    "session_id": session_id,
+                    "conversation_id": conversation_id,
+                    "title": _session_title(messages),
+                    "created_at": item.get("created_at"),
+                    "updated_at": item.get("updated_at"),
+                    "messages": messages,
+                }
+            )
+        return sessions, has_more
 
 
 class ChatSessionMgr(GenericEntityMgr[ChatSession]):

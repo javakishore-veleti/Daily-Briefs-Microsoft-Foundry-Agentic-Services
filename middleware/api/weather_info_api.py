@@ -1,3 +1,5 @@
+from middleware.adapters.daos.chat_history_recorder import ChatHistoryRecorder
+from middleware.common.app_module import AppModule
 from middleware.common.dtos.weather_info_dtos import (
     WeatherInfoApiResponse,
     WeatherInfoCtx,
@@ -24,6 +26,7 @@ class WeatherInfoApi:
             ctx.resp.usage.input_tokens,
             ctx.resp.usage.output_tokens,
         )
+        self._record(req.session_id, req.query, conversation_id, ctx)
         return WeatherInfoApiResponse(
             output_text=ctx.resp.results.get("output_text", ""),
             conversation_id=conversation_id,
@@ -36,3 +39,16 @@ class WeatherInfoApi:
             cached_tokens=ctx.resp.usage.cached_tokens,
             reasoning_tokens=ctx.resp.usage.reasoning_tokens,
         )
+
+    def _record(self, session_id: str, query: str, conversation_id: str, ctx: WeatherInfoCtx) -> None:
+        try:
+            ChatHistoryRecorder().record_turn(
+                AppModule.WEATHER_BRIEF,
+                session_id,
+                conversation_id,
+                query,
+                ctx.resp.results.get("output_text", ""),
+                ctx.resp.results.get("model", ""),
+            )
+        except Exception:
+            get_logger(__name__).exception("session_id=%s chat history was not stored", session_id)

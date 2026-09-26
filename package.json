@@ -10,6 +10,9 @@
     "local:portals:status": "sh scripts/local-portals.sh status",
     "local:run-all": "sh scripts/local-run-all.sh",
     "local:stop-all": "sh scripts/local-stop-all.sh",
-    "local:status-all": "sh scripts/local-status-all.sh"
+    "local:status-all": "sh scripts/local-status-all.sh",
+    "local:containers:start-all": "sh DevOps/Local/docker-all-up.sh",
+    "local:containers:stop-all": "sh DevOps/Local/docker-all-down.sh",
+    "local:containers:status-all": "sh DevOps/Local/docker-all-status.sh"
   }
 }

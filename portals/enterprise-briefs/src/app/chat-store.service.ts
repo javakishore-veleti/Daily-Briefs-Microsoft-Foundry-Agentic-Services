@@ -1,11 +1,9 @@
 import { Injectable, signal } from '@angular/core';
 import { ChatMessage, ChatThread } from './chat.models';
 
-const STORAGE_KEY = 'daily-briefs-portal-chats';
-
 @Injectable({ providedIn: 'root' })
 export class ChatStore {
-  readonly threads = signal<ChatThread[]>(this.read());
+  readonly threads = signal<ChatThread[]>([]);
 
   threadsFor(briefId: string): ChatThread[] {
     return this.threads()
@@ -28,7 +26,6 @@ export class ChatStore {
       updatedAt: now,
     };
     this.threads.update((items) => [thread, ...items]);
-    this.persist();
     return thread;
   }
 
@@ -50,24 +47,13 @@ export class ChatStore {
         };
       }),
     );
-    this.persist();
   }
 
-  private read(): ChatThread[] {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
-    try {
-      const parsed = JSON.parse(raw) as ChatThread[];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-
-  private persist(): void {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.threads()));
+  replaceBrief(briefId: string, threads: ChatThread[]): void {
+    this.threads.update((items) => [
+      ...threads,
+      ...items.filter((item) => item.briefId !== briefId),
+    ]);
   }
 }
 

@@ -32,6 +32,7 @@ class AppConfig(BaseModel):
             "api_host": os.getenv("API_HOST", "0.0.0.0"),
             "api_port": os.getenv("API_PORT", "8000"),
             "api_allowed_hosts": os.getenv("API_ALLOWED_HOSTS", "*"),
+            "db_technology": os.getenv("DB_TECHNOLOGY", "mongodb"),
         }
 
     def get_foundry_project_endpoint(self) -> str:
@@ -67,6 +68,15 @@ class AppConfig(BaseModel):
         if isinstance(port, str) and port.isdigit():
             return int(port)
         return 8000
+
+    def get_db_technology(self) -> str:
+        technology = self.config.get("db_technology", "mongodb")
+        if not isinstance(technology, str) or not technology.strip():
+            return "mongodb"
+        normalized = technology.strip().lower()
+        if normalized in {"mongodb", "cosmosdb"}:
+            return normalized
+        raise RuntimeError("DB_TECHNOLOGY must be mongodb or cosmosdb")
 
     def get_api_allowed_hosts(self) -> list[str]:
         hosts = self.config.get("api_allowed_hosts", "*")

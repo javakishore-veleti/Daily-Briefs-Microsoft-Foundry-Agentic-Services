@@ -1,0 +1,21 @@
+name: daily-briefs-local
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: daily-briefs-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: daily_briefs
+    volumes:
+      - daily-briefs-mongodb:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  daily-briefs-mongodb:

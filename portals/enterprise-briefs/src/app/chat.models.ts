@@ -18,6 +18,28 @@ export interface ChatThread {
   updatedAt: string;
 }
 
+export interface ChatHistoryMessageResponse {
+  id: string;
+  role: string;
+  message: string;
+  created_at: string | null;
+  conversation_id: string;
+}
+
+export interface ChatHistorySessionResponse {
+  session_id: string;
+  conversation_id: string;
+  title: string;
+  created_at: string | null;
+  updated_at: string | null;
+  messages: ChatHistoryMessageResponse[];
+}
+
+export interface ChatHistoryListResponse {
+  sessions: ChatHistorySessionResponse[];
+  has_more: boolean;
+}
+
 export interface WebSearchResponse {
   output_text: string;
   conversation_id: string;
