@@ -1,11 +1,15 @@
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from azure.ai.projects.models import AgentVersionDetails, PromptAgentDefinition, WebSearchPreviewTool
 from middleware.adapters.azure.ms_foundry.constants import AGENT_NAME_WEB_SEARCH
-from middleware.adapters.azure.ms_foundry.main_web_search import WebSearchAdapter
 from middleware.common.dtos.app_config import AppConfig
 from azure.ai.projects import AIProjectClient
 from azure.identity import DefaultAzureCredential
+
+if TYPE_CHECKING:
+    from openai import OpenAI
+
+    from middleware.adapters.azure.ms_foundry.main_web_search import WebSearchAdapter
 
 class ObjectsFactory:
     _instance: ClassVar["ObjectsFactory | None"] = None
@@ -39,13 +43,15 @@ class ObjectsFactory:
     def get_web_search_agent(self) -> AgentVersionDetails:
         return self.objects["web_seach_agent"]
     
-    def get_open_ai_client(self) -> OpenAI:
+    def get_open_ai_client(self) -> "OpenAI":
         return self.objects["open_ai_client"]
     
     def get_ms_foundry_project_client(self) -> AIProjectClient:
         return self.objects["ms_foundry_project_client"]
     
-    def get_web_search_adapter(self) -> WebSearchAdapter:
+    def get_web_search_adapter(self) -> "WebSearchAdapter":
+        from middleware.adapters.azure.ms_foundry.main_web_search import WebSearchAdapter
+
         if "web_search_adapter" not in self.objects:
             self.init_ms_foundry_objects()
             web_search_adapter = WebSearchAdapter()

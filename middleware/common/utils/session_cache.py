@@ -9,7 +9,7 @@ class SessionCache:
         self.cache = {}
 
     def get(self, session_id: str) -> dict:
-        return self.cache.get(session_id, {"conversation_id": str(uuid4())})
+        return self.cache.get(session_id, {})
 
     def set(self, session_id: str, value: dict):
         self.cache[session_id] = value

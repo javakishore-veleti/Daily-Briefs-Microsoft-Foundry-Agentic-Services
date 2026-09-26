@@ -13,8 +13,9 @@ class WebSearchReq(BaseModel):
         )
 
 class WebSearchResp(BaseModel):
-    def __init__(self, results: list[str] = []):
+    def __init__(self, results: dict = {}):
         self.results = results
+        self.ctx_data = {}
 
 class WebSearchCtx(BaseModel):
     def __init__(self, req: WebSearchReq, resp: WebSearchResp):
