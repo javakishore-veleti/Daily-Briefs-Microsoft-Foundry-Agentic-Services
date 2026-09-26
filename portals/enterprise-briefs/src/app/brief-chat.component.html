@@ -37,7 +37,7 @@
         }
         @for (item of active()?.messages ?? []; track item.id) {
           <article class="bubble" [class.bubble-user]="item.role === 'user'" [class.bubble-failed]="item.failed">
-            <p class="who">{{ item.role === 'user' ? 'You' : 'Daily Briefs Search' }}</p>
+            <p class="who">{{ item.role === 'user' ? 'You' : menu()?.label }}</p>
             <div class="body" [innerHTML]="html(item.text)"></div>
             @if (item.role === 'assistant' && item.totalTokens !== undefined) {
               <p class="usage">
@@ -47,7 +47,7 @@
           </article>
         }
         @if (sending()) {
-          <p class="pending">Searching…</p>
+          <p class="pending">{{ menu()?.pending }}</p>
         }
       </div>
       <form class="composer" (submit)="$event.preventDefault(); send()">
@@ -56,7 +56,7 @@
           [value]="draft()"
           (input)="onDraft($event)"
           (keydown)="onComposerKey($event)"
-          placeholder="Ask a question"
+          [placeholder]="menu()?.placeholder"
           [disabled]="sending()"
         ></textarea>
         <button type="submit" [disabled]="sending() || !draft().trim()">Send</button>

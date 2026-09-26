@@ -1,22 +1,22 @@
 from typing import override
 
 from middleware.adapters.azure.azure_foundry_adapter import AzureMsFoundryAppAdapter
-from middleware.adapters.azure.ms_foundry.constants import AGENT_NAME_WEB_SEARCH
+from middleware.adapters.azure.ms_foundry.constants import AGENT_NAME_WEATHER
 from middleware.adapters.azure.ms_foundry.objects_factory import ObjectsFactory
 from middleware.common.app_exec_contants import AppExecConstants
 from middleware.common.dtos.common import AppCtx
-from middleware.common.dtos.web_search_dtos import WebSearchReq, WebSearchResp
+from middleware.common.dtos.weather_info_dtos import WeatherInfoReq, WeatherInfoResp
 from middleware.common.utils.logger_util import get_logger, log_methods
 
 
 @log_methods
-class WebSearchAdapter(AzureMsFoundryAppAdapter[WebSearchReq, WebSearchResp]):
+class WeatherInfoAdapter(AzureMsFoundryAppAdapter[WeatherInfoReq, WeatherInfoResp]):
     def __init__(self):
-        self.name = "WebSearchAdapter"
-        self.description = "An adapter that can search the web for information"
+        self.name = "WeatherInfoAdapter"
+        self.description = "An adapter that can get weather information from the open api"
 
     @override
-    def run(self, ctx: AppCtx[WebSearchReq, WebSearchResp]) -> int:
+    def run(self, ctx: AppCtx[WeatherInfoReq, WeatherInfoResp]) -> int:
         objects_factory = ObjectsFactory.get_instance()
         conversation_id = self.get_or_create_conversation_id(ctx.req.session_id, objects_factory)
         get_logger(__name__).info(
@@ -29,11 +29,11 @@ class WebSearchAdapter(AzureMsFoundryAppAdapter[WebSearchReq, WebSearchResp]):
             conversation=conversation_id,
             extra_body={
                 "agent_reference": {
-                    "name": AGENT_NAME_WEB_SEARCH,
+                    "name": AGENT_NAME_WEATHER,
                     "type": "agent_reference",
                 }
             },
-            input = ctx.req.query
+            input=ctx.req.query,
         )
         usage = response.usage
         input_tokens = usage.input_tokens if usage is not None else 0

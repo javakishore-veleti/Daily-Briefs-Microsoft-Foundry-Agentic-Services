@@ -46,8 +46,11 @@ class App:
 
     def _daily_briefs_router(self) -> APIRouter:
         router = APIRouter(prefix="/daily-briefs", tags=["daily-briefs"])
-        web_search_api = ObjectsFactory.get_instance().get_web_search_api()
+        api_factory = ObjectsFactory.get_instance()
+        web_search_api = api_factory.get_web_search_api()
+        weather_info_api = api_factory.get_weather_info_api()
         router.post("/web-search")(web_search_api.web_search)
+        router.post("/weather-info")(weather_info_api.weather_info)
         return router
 
 

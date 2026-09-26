@@ -11,7 +11,8 @@ from azure.ai.projects.models import (
     Reasoning,
     WebSearchPreviewTool,
 )
-from middleware.adapters.azure.ms_foundry.constants import AGENT_NAME_WEB_SEARCH
+from middleware.adapters.azure.ms_foundry.constants import AGENT_NAME_WEATHER, AGENT_NAME_WEB_SEARCH
+from middleware.adapters.azure.ms_foundry.weather_info.weather_open_api_def_tool import WeatherOpenApiDefTool
 from middleware.common.dtos.app_config import AppConfig
 from middleware.common.utils.logger_util import get_logger, log_methods
 from azure.ai.projects import AIProjectClient
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
     from openai import OpenAI
 
     from middleware.adapters.azure.ms_foundry.main_web_search import WebSearchAdapter
+    from middleware.adapters.azure.ms_foundry.weather_info.main import WeatherInfoAdapter
 
 @log_methods
 class ObjectsFactory:
@@ -32,37 +34,47 @@ class ObjectsFactory:
         self.objects = {}
 
     def init_ms_foundry_objects(self):
+        self._ensure_agent(AGENT_NAME_WEB_SEARCH, self._web_search_agent_definition(), "web_seach_agent")
+
+    def _ensure_clients(self) -> str:
+        if "open_ai_client" in self.objects:
+            return AppConfig.get_instance().get_foundry_api_key()
+
         ms_foundry_project_client = AIProjectClient(
             endpoint=AppConfig.get_instance().get_foundry_project_endpoint(),
             credential=DefaultAzureCredential()
         )
-        
         api_key = AppConfig.get_instance().get_foundry_api_key()
         open_ai_client = ms_foundry_project_client.get_openai_client(
             **({"api_key": api_key} if api_key else {})
         )
         self.objects["ms_foundry_project_client"] = ms_foundry_project_client
         self.objects["open_ai_client"] = open_ai_client
+        return api_key
 
-        logger = get_logger(__name__)
-        try:
-            web_seach_agent: AgentDetails | AgentVersionDetails = ms_foundry_project_client.agents.get(
-                AGENT_NAME_WEB_SEARCH
-            )
-            logger.info("agent_name=%s found", AGENT_NAME_WEB_SEARCH)
-        except ResourceNotFoundError:
-            web_seach_agent = ms_foundry_project_client.agents.create_version(
-                agent_name=AGENT_NAME_WEB_SEARCH,
-                definition=self._web_search_agent_definition(),
-            )
-            logger.info("agent_name=%s created", AGENT_NAME_WEB_SEARCH)
-        except HttpResponseError:
-            logger.exception("agent_name=%s unavailable via credential", AGENT_NAME_WEB_SEARCH)
-            if api_key:
-                self._create_agent_with_api_key(api_key)
+    def _ensure_agent(self, agent_name: str, definition: PromptAgentDefinition, store_key: str) -> None:
+        if store_key in self.objects:
             return
 
-        self.objects["web_seach_agent"] = web_seach_agent
+        api_key = self._ensure_clients()
+        project_client = self.get_ms_foundry_project_client()
+        logger = get_logger(__name__)
+        try:
+            agent: AgentDetails | AgentVersionDetails = project_client.agents.get(agent_name)
+            logger.info("agent_name=%s found", agent_name)
+        except ResourceNotFoundError:
+            agent = project_client.agents.create_version(
+                agent_name=agent_name,
+                definition=definition,
+            )
+            logger.info("agent_name=%s created", agent_name)
+        except HttpResponseError:
+            logger.exception("agent_name=%s unavailable via credential", agent_name)
+            if api_key:
+                self._create_agent_with_api_key(api_key, agent_name, definition)
+            return
+
+        self.objects[store_key] = agent
 
     def _web_search_agent_definition(self) -> PromptAgentDefinition:
         return PromptAgentDefinition(
@@ -72,11 +84,18 @@ class ObjectsFactory:
             reasoning=Reasoning(effort=AppConfig.get_instance().get_reasoning_effort()),
         )
 
-    def _create_agent_with_api_key(self, api_key: str) -> None:
+    def _weather_agent_definition(self) -> PromptAgentDefinition:
+        return PromptAgentDefinition(
+            model=AppConfig.get_instance().get_model_deployment_name(),
+            instructions="You are a helpful Weather Agent that provides weather information using the provided OpenAPI Tool",
+            tools=[WeatherOpenApiDefTool().initialize_weather_opena_api_tool_def()],
+            reasoning=Reasoning(effort=AppConfig.get_instance().get_reasoning_effort()),
+        )
+
+    def _create_agent_with_api_key(self, api_key: str, agent_name: str, definition: PromptAgentDefinition) -> None:
         logger = get_logger(__name__)
         endpoint = AppConfig.get_instance().get_foundry_project_endpoint().rstrip("/")
-        url = f"{endpoint}/agents/{AGENT_NAME_WEB_SEARCH}/versions?api-version=v1"
-        definition = self._web_search_agent_definition()
+        url = f"{endpoint}/agents/{agent_name}/versions?api-version=v1"
         request = urllib.request.Request(
             url,
             data=json.dumps({"definition": definition.as_dict()}).encode(),
@@ -92,17 +111,17 @@ class ObjectsFactory:
                 response.read()
         except urllib.error.HTTPError as error:
             if error.code == 409:
-                logger.info("agent_name=%s already exists", AGENT_NAME_WEB_SEARCH)
+                logger.info("agent_name=%s already exists", agent_name)
                 return
             detail = error.read().decode(errors="replace")
             logger.error(
                 "agent_name=%s create failed status=%s body=%s",
-                AGENT_NAME_WEB_SEARCH,
+                agent_name,
                 error.code,
                 detail[:500],
             )
             return
-        logger.info("agent_name=%s created", AGENT_NAME_WEB_SEARCH)
+        logger.info("agent_name=%s created", agent_name)
 
     def get_web_search_agent(self) -> AgentDetails | AgentVersionDetails:
         return self.objects["web_seach_agent"]
@@ -121,6 +140,14 @@ class ObjectsFactory:
             web_search_adapter = WebSearchAdapter()
             self.objects["web_search_adapter"] = web_search_adapter
         return self.objects["web_search_adapter"]
+
+    def get_weather_info_adapter(self) -> "WeatherInfoAdapter":
+        from middleware.adapters.azure.ms_foundry.weather_info.main import WeatherInfoAdapter
+
+        if "weather_info_adapter" not in self.objects:
+            self._ensure_agent(AGENT_NAME_WEATHER, self._weather_agent_definition(), "weather_agent")
+            self.objects["weather_info_adapter"] = WeatherInfoAdapter()
+        return self.objects["weather_info_adapter"]
 
     @staticmethod
     def get_instance() -> "ObjectsFactory":

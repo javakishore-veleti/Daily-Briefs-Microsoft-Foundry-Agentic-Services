@@ -109,7 +109,7 @@ export class BriefChatComponent implements OnInit {
       error: (error: HttpErrorResponse) => {
         this.store.append(
           threadId,
-          message('assistant', errorMessage(error), true),
+          message('assistant', errorMessage(error, menu.label), true),
         );
         this.sending.set(false);
         this.refresh(threadId);
@@ -156,12 +156,12 @@ function message(role: 'user' | 'assistant', text: string, failed = false): Chat
   };
 }
 
-function errorMessage(error: HttpErrorResponse): string {
+function errorMessage(error: HttpErrorResponse, label: string): string {
   if (typeof error.error === 'string' && error.error.trim()) {
     return error.error;
   }
   if (error.status === 0) {
     return 'The middleware is not reachable at http://127.0.0.1:8000.';
   }
-  return `The search failed (${error.status}).`;
+  return `${label} failed (${error.status}).`;
 }
