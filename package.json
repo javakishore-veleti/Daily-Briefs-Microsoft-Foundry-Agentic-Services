@@ -1,0 +1,9 @@
+{
+  "name": "daily-briefs-microsoft-foundry-agentic-services",
+  "private": true,
+  "scripts": {
+    "local:middleware:start": "sh scripts/local-middleware.sh start",
+    "local:middleware:stop": "sh scripts/local-middleware.sh stop",
+    "local:middleware:status": "sh scripts/local-middleware.sh status"
+  }
+}

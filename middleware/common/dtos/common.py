@@ -1,14 +1,19 @@
 from pydantic import BaseModel
 
+from middleware.common.utils.logger_util import log_methods
 
+
+@log_methods
 class AppReq(BaseModel):
     pass
 
 
+@log_methods
 class AppResp(BaseModel):
     pass
 
 
+@log_methods
 class AppCtx[ReqT: AppReq, RespT: AppResp]:
     req: ReqT
     resp: RespT

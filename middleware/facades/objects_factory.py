@@ -1,8 +1,10 @@
 from typing import ClassVar
 from middleware.facades.web_search.impl import WebSearchFacadeImpl
+from middleware.common.utils.logger_util import log_methods
 from middleware.facades.web_search.interfaces import WebSearchFacade
 
 
+@log_methods
 class ObjectsFactory:
     _instance: ClassVar["ObjectsFactory | None"] = None
 

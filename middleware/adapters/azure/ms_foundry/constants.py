@@ -1,1 +1,1 @@
-AGENT_NAME_WEB_SEARCH = "web_search_agent"
+AGENT_NAME_WEB_SEARCH = "web-search-agent"

@@ -2,9 +2,11 @@ from typing import ClassVar, override
 
 from middleware.adapters.azure.ms_foundry.objects_factory import ObjectsFactory
 from middleware.common.dtos.web_search_dtos import WebSearchCtx
+from middleware.common.utils.logger_util import get_logger, log_methods
 from middleware.facades.web_search.interfaces import WebSearchTask
 
 
+@log_methods
 class AzureWebSearchTask(WebSearchTask):
     _instance: ClassVar["AzureWebSearchTask | None"] = None
 
@@ -21,6 +23,7 @@ class AzureWebSearchTask(WebSearchTask):
 
     @override
     def execute(self, ctx: WebSearchCtx) -> int:
+        get_logger(__name__).info("session_id=%s", ctx.req.session_id)
         return ObjectsFactory.get_instance().get_web_search_adapter().run(ctx)
 
 

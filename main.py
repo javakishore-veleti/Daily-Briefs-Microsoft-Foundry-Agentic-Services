@@ -1,5 +1,4 @@
-def main():
-    print("Hello from daily-briefs-microsoft-foundry-agentic-services!")
+from middleware.api.app import main
 
 
 if __name__ == "__main__":
