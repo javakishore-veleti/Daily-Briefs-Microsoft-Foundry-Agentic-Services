@@ -29,6 +29,28 @@ export class ChatStore {
     return thread;
   }
 
+  appendResponse(threadId: string, promptText: string, message: ChatMessage): void {
+    this.threads.update((items) =>
+      items.map((thread) => {
+        if (thread.id !== threadId) {
+          return thread;
+        }
+        const messages = [...thread.messages];
+        const promptIndex = messages.findIndex((item) => item.role === 'user' && item.text === promptText);
+        if (promptIndex < 0) {
+          messages.push(message);
+        } else {
+          let insertAt = promptIndex + 1;
+          while (insertAt < messages.length && messages[insertAt].role === 'assistant') {
+            insertAt += 1;
+          }
+          messages.splice(insertAt, 0, message);
+        }
+        return { ...thread, messages, updatedAt: message.createdAt };
+      }),
+    );
+  }
+
   append(threadId: string, message: ChatMessage): void {
     this.threads.update((items) =>
       items.map((thread) => {

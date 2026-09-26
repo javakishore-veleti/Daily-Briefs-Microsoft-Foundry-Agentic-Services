@@ -1,7 +1,9 @@
 from typing import ClassVar
+from middleware.facades.user.impl import UserFacadeImpl
 from middleware.facades.weather_info.impl import WeatherInfoFacadeImpl
 from middleware.facades.web_search.impl import WebSearchFacadeImpl
 from middleware.common.utils.logger_util import log_methods
+from middleware.facades.user.interfaces import UserFacade
 from middleware.facades.weather_info.interfaces import WeatherInfoFacade
 from middleware.facades.web_search.interfaces import WebSearchFacade
 
@@ -11,7 +13,7 @@ class ObjectsFactory:
     _instance: ClassVar["ObjectsFactory | None"] = None
 
     def __init__(self) -> None:
-        self.facades: dict[str, WebSearchFacade | WeatherInfoFacade] = {}
+        self.facades: dict[str, WebSearchFacade | WeatherInfoFacade | UserFacade] = {}
         self.initialized = False
         
     @staticmethod
@@ -25,12 +27,18 @@ class ObjectsFactory:
             return
         self.get_web_search_facade().initialize()
         self.get_weather_info_facade().initialize()
+        self.get_user_facade().initialize()
         self.initialized = True
 
     def get_web_search_facade(self) -> WebSearchFacade:
         if "web_search_facade" not in self.facades:
             self.facades["web_search_facade"] = WebSearchFacadeImpl()
         return self.facades["web_search_facade"]
+
+    def get_user_facade(self) -> UserFacade:
+        if "user_facade" not in self.facades:
+            self.facades["user_facade"] = UserFacadeImpl()
+        return self.facades["user_facade"]
 
     def get_weather_info_facade(self) -> WeatherInfoFacade:
         if "weather_info_facade" not in self.facades:

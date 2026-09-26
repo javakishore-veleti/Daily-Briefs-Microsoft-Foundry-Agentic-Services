@@ -15,7 +15,8 @@ class WebSearchApi:
 
     def web_search(self, req: WebSearchReq) -> WebSearchApiResponse:
         logger = get_logger(__name__)
-        logger.info("session_id=%s", req.session_id)
+        logger.info("session_id=%s user_id=%s", req.session_id, req.user_id)
+        self._require_user(req.user_id)
         ctx = WebSearchCtx(req=req, resp=WebSearchResp(results={}))
         ObjectsFactory.get_instance().get_web_search_facade().execute(ctx)
         conversation_id = ctx.resp.ctx_data.get("conversation_id", "")
@@ -26,7 +27,7 @@ class WebSearchApi:
             ctx.resp.usage.input_tokens,
             ctx.resp.usage.output_tokens,
         )
-        self._record(req.session_id, req.query, conversation_id, ctx)
+        self._record(req.session_id, req.user_id, req.query, conversation_id, ctx)
         return WebSearchApiResponse(
             output_text=ctx.resp.results.get("output_text", ""),
             conversation_id=conversation_id,
@@ -40,7 +41,12 @@ class WebSearchApi:
             reasoning_tokens=ctx.resp.usage.reasoning_tokens,
         )
 
-    def _record(self, session_id: str, query: str, conversation_id: str, ctx: WebSearchCtx) -> None:
+    def _require_user(self, user_id: str) -> None:
+        from middleware.api.objects_factory import ObjectsFactory as ApiObjectsFactory
+
+        ApiObjectsFactory.get_instance().get_user_api().require(user_id)
+
+    def _record(self, session_id: str, user_id: str, query: str, conversation_id: str, ctx: WebSearchCtx) -> None:
         try:
             ChatHistoryRecorder().record_turn(
                 AppModule.DAILY_BRIEF,
@@ -49,6 +55,7 @@ class WebSearchApi:
                 query,
                 ctx.resp.results.get("output_text", ""),
                 ctx.resp.results.get("model", ""),
+                user_id,
             )
         except Exception:
             get_logger(__name__).exception("session_id=%s chat history was not stored", session_id)

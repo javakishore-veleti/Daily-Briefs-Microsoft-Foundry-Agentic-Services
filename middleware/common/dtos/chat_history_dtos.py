@@ -10,6 +10,7 @@ class ChatHistoryMessageResponse(BaseModel):
     id: str = ""
     role: str = ""
     message: str = ""
+    sequence: int = 0
     created_at: datetime | None = None
     conversation_id: str = ""
 

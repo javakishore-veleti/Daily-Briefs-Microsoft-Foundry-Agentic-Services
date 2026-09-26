@@ -5,7 +5,8 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { BriefMenu, briefById } from './briefs';
 import { BriefApi } from './brief-api.service';
 import { ChatStore } from './chat-store.service';
-import { ChatHistoryListResponse, ChatHistorySessionResponse, ChatMessage, ChatThread } from './chat.models';
+import { UserStore } from './user-store.service';
+import { ChatHistoryListResponse, ChatHistorySessionResponse, ChatMessage, ChatThread, PromptGroup } from './chat.models';
 
 @Component({
   selector: 'app-brief-chat',
@@ -18,6 +19,7 @@ export class BriefChatComponent implements OnInit {
 
   private readonly route = inject(ActivatedRoute);
   private readonly store = inject(ChatStore);
+  private readonly users = inject(UserStore);
   private readonly api = inject(BriefApi);
   private readonly sanitizer = inject(DomSanitizer);
 
@@ -85,8 +87,29 @@ export class BriefChatComponent implements OnInit {
   }
 
   isEmpty(): boolean {
-    const thread = this.active();
-    return !thread || thread.messages.length === 0;
+    return this.groups().length === 0;
+  }
+
+  groups(): PromptGroup[] {
+    const groups: PromptGroup[] = [];
+    for (const item of this.active()?.messages ?? []) {
+      if (item.role === 'user') {
+        if (groups.some((group) => group.prompt === item.text)) {
+          continue;
+        }
+        groups.push({ id: item.id, prompt: item.text, responses: [] });
+        continue;
+      }
+      const current = groups[groups.length - 1];
+      if (!current) {
+        continue;
+      }
+      current.responses.push(item);
+    }
+    for (const group of groups) {
+      group.responses.sort((left, right) => (left.sequence ?? 0) - (right.sequence ?? 0));
+    }
+    return groups;
   }
 
   send(): void {
@@ -100,15 +123,21 @@ export class BriefChatComponent implements OnInit {
       thread = this.store.create(menu.id);
     }
     const threadId = thread.id;
-    this.store.append(threadId, message('user', text));
+    const existing = thread.messages.some((item) => item.role === 'user' && item.text === text);
+    if (!existing) {
+      this.store.append(threadId, message('user', text));
+    }
     this.draft.set('');
     this.sending.set(true);
     this.refresh(threadId);
     const sessionId = this.store.thread(threadId)?.sessionId ?? thread.sessionId;
-    this.api.search(menu.endpoint, text, sessionId).subscribe({
+    const userId = this.users.current()?.id ?? '';
+    this.api.search(menu.endpoint, text, sessionId, userId).subscribe({
       next: (response) => {
-        this.store.append(threadId, {
+        const sequence = nextSequence(this.store.thread(threadId)?.messages ?? [], text);
+        this.store.appendResponse(threadId, text, {
           ...message('assistant', response.output_text),
+          sequence,
           inputTokens: response.input_tokens,
           outputTokens: response.output_tokens,
           totalTokens: response.total_tokens,
@@ -119,10 +148,11 @@ export class BriefChatComponent implements OnInit {
         this.loadHistory(false);
       },
       error: (error: HttpErrorResponse) => {
-        this.store.append(
-          threadId,
-          message('assistant', errorMessage(error, menu.label), true),
-        );
+        const sequence = nextSequence(this.store.thread(threadId)?.messages ?? [], text);
+        this.store.appendResponse(threadId, text, {
+          ...message('assistant', errorMessage(error, menu.label), true),
+          sequence,
+        });
         this.sending.set(false);
         this.refresh(threadId);
       },
@@ -146,8 +176,12 @@ export class BriefChatComponent implements OnInit {
     if (!menu) {
       return;
     }
+    const userId = this.users.current()?.id ?? '';
+    if (!userId) {
+      return;
+    }
     const skip = append ? this.historySkip : 0;
-    this.api.history(menu.id, this.pageSize, skip).subscribe({
+    this.api.history(menu.id, this.pageSize, skip, userId).subscribe({
       next: (response) => this.applyHistory(menu.id, response, append, skip),
     });
   }
@@ -206,6 +240,7 @@ function toThread(briefId: string, session: ChatHistorySessionResponse): ChatThr
       id: item.id || crypto.randomUUID(),
       role: item.role === 'user' ? 'user' : 'assistant',
       text: item.message,
+      sequence: item.sequence,
       createdAt: item.created_at ?? new Date().toISOString(),
     })),
   };
@@ -219,6 +254,21 @@ function message(role: 'user' | 'assistant', text: string, failed = false): Chat
     createdAt: new Date().toISOString(),
     failed,
   };
+}
+
+function nextSequence(messages: ChatMessage[], promptText: string): number {
+  const promptIndex = messages.findIndex((item) => item.role === 'user' && item.text === promptText);
+  if (promptIndex < 0) {
+    return 1;
+  }
+  let count = 0;
+  for (let index = promptIndex + 1; index < messages.length; index += 1) {
+    if (messages[index].role !== 'assistant') {
+      break;
+    }
+    count += 1;
+  }
+  return count + 1;
 }
 
 function errorMessage(error: HttpErrorResponse, label: string): string {

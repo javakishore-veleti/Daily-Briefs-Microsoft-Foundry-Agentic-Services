@@ -44,13 +44,22 @@ class ObjectsFactory:
         if "open_ai_client" in self.objects:
             return AppConfig.get_instance().get_foundry_api_key()
 
+        config = AppConfig.get_instance()
+        project_endpoint = config.get_foundry_project_endpoint().rstrip("/")
+        openai_base_url = f"{project_endpoint}/openai/v1"
         ms_foundry_project_client = AIProjectClient(
-            endpoint=AppConfig.get_instance().get_foundry_project_endpoint(),
+            endpoint=project_endpoint,
             credential=DefaultAzureCredential()
         )
-        api_key = AppConfig.get_instance().get_foundry_api_key()
-        open_ai_client = ms_foundry_project_client.get_openai_client(
-            **({"api_key": api_key} if api_key else {})
+        api_key = config.get_foundry_api_key()
+        client_kwargs = {"base_url": openai_base_url}
+        if api_key:
+            client_kwargs["api_key"] = api_key
+        open_ai_client = ms_foundry_project_client.get_openai_client(**client_kwargs)
+        get_logger(__name__).info(
+            "foundry_project=%s openai_base_url=%s",
+            project_endpoint,
+            getattr(open_ai_client, "base_url", openai_base_url),
         )
         self.objects["ms_foundry_project_client"] = ms_foundry_project_client
         self.objects["open_ai_client"] = open_ai_client
@@ -106,6 +115,11 @@ class ObjectsFactory:
     def _create_agent_with_api_key(self, api_key: str, agent_name: str, definition: PromptAgentDefinition) -> None:
         logger = get_logger(__name__)
         endpoint = AppConfig.get_instance().get_foundry_project_endpoint().rstrip("/")
+        instructions = str(getattr(definition, "instructions", "") or "")
+        existing = self._agent_text_with_api_key(api_key, endpoint, agent_name)
+        if instructions and instructions in existing:
+            logger.info("agent_name=%s already current", agent_name)
+            return
         url = f"{endpoint}/agents/{agent_name}/versions?api-version=v1"
         request = urllib.request.Request(
             url,
@@ -134,6 +148,17 @@ class ObjectsFactory:
             return
         logger.info("agent_name=%s created", agent_name)
 
+    def _agent_text_with_api_key(self, api_key: str, endpoint: str, agent_name: str) -> str:
+        request = urllib.request.Request(
+            f"{endpoint}/agents/{agent_name}?api-version=v1",
+            headers={"api-key": api_key, "Accept": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return response.read().decode(errors="replace")
+        except urllib.error.URLError:
+            return ""
+
     def _web_search_reasoning_effort(self) -> str:
         effort = AppConfig.get_instance().get_reasoning_effort()
         if effort == "minimal":
@@ -142,12 +167,13 @@ class ObjectsFactory:
 
     def _weather_instructions(self) -> str:
         return (
-            "You are a weather agent. Answer only weather questions. "
-            "When the user names a city, state, or country, call the weather OpenAPI tool immediately with that place and format j1. "
-            "Reply with the temperature and sky conditions from the tool result. "
-            "Do not ask the user to confirm a location that is already named. "
-            "If the question is not about the weather, say that you only answer weather questions and ask for a city. "
-            "Do not search the web, do not offer a web search, and do not answer questions about people."
+            "You are a weather agent. Answer weather questions, including follow-ups in this conversation. "
+            "Follow-up weather questions use the place already named in this conversation. "
+            "When a city, state, or country is known, call the weather tool for that place. "
+            "Answer rain, temperature, wind, humidity, and forecast questions for that place. "
+            "Ask for a city only when no place has been named in this conversation. "
+            "If the question is not about the weather, say that you only answer weather questions. "
+            "Do not search the web and do not answer questions about people."
         )
 
     def _latest_definition(self, agent: AgentDetails | AgentVersionDetails):
@@ -171,7 +197,7 @@ class ObjectsFactory:
             reasoning = getattr(definition, "reasoning", None)
             effort = getattr(reasoning, "effort", None)
             current = str(getattr(effort, "value", effort) or "").lower()
-            return "Reply with the temperature and sky conditions" not in instructions or current == "minimal"
+            return "Follow-up weather questions use the place already named" not in instructions or current == "minimal"
         return False
 
     def get_web_search_agent(self) -> AgentDetails | AgentVersionDetails:

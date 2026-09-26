@@ -2,6 +2,7 @@ export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   text: string;
+  sequence?: number;
   createdAt: string;
   inputTokens?: number;
   outputTokens?: number;
@@ -22,8 +23,15 @@ export interface ChatHistoryMessageResponse {
   id: string;
   role: string;
   message: string;
+  sequence: number;
   created_at: string | null;
   conversation_id: string;
+}
+
+export interface PromptGroup {
+  id: string;
+  prompt: string;
+  responses: ChatMessage[];
 }
 
 export interface ChatHistorySessionResponse {

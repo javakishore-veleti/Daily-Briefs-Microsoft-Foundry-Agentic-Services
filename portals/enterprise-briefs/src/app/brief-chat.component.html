@@ -38,16 +38,24 @@
         @if (isEmpty()) {
           <p class="welcome">Start a chat. Each new chat keeps its own history.</p>
         }
-        @for (item of active()?.messages ?? []; track item.id) {
-          <article class="bubble" [class.bubble-user]="item.role === 'user'" [class.bubble-failed]="item.failed">
-            <p class="who">{{ item.role === 'user' ? 'You' : menu()?.label }}</p>
-            <div class="body" [innerHTML]="html(item.text)"></div>
-            @if (item.role === 'assistant' && item.totalTokens !== undefined) {
-              <p class="usage">
-                {{ item.inputTokens }} input · {{ item.outputTokens }} output · {{ item.totalTokens }} total
-              </p>
+        @for (group of groups(); track group.id) {
+          <section class="prompt-group">
+            <article class="bubble bubble-user prompt-top">
+              <p class="who">You</p>
+              <div class="body" [innerHTML]="html(group.prompt)"></div>
+            </article>
+            @for (item of group.responses; track item.id) {
+              <article class="bubble" [class.bubble-failed]="item.failed">
+                <p class="who">{{ menu()?.label }} {{ item.sequence }}</p>
+                <div class="body" [innerHTML]="html(item.text)"></div>
+                @if (item.totalTokens !== undefined) {
+                  <p class="usage">
+                    {{ item.inputTokens }} input · {{ item.outputTokens }} output · {{ item.totalTokens }} total
+                  </p>
+                }
+              </article>
             }
-          </article>
+          </section>
         }
         @if (sending()) {
           <p class="pending">{{ menu()?.pending }}</p>

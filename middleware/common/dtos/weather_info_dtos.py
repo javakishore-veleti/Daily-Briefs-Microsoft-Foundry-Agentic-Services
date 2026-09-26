@@ -10,6 +10,7 @@ from middleware.common.utils.logger_util import log_methods
 class WeatherInfoReq(AppReq):
     query: str = ""
     session_id: str = Field(default_factory=lambda: str(uuid4()))
+    user_id: str = ""
 
 
 @log_methods

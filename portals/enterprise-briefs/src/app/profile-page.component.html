@@ -1,0 +1,29 @@
+<section class="auth-screen">
+  <form class="auth-card" (submit)="save(); $event.preventDefault()">
+    <h1>Profile</h1>
+    <label>
+      Name
+      <input [value]="name()" (input)="onInput('name', $event)" autocomplete="name" />
+    </label>
+    <label>
+      Email
+      <input type="email" [value]="email()" (input)="onInput('email', $event)" autocomplete="email" required />
+    </label>
+    <label>
+      Phone
+      <input [value]="phone()" (input)="onInput('phone', $event)" autocomplete="tel" />
+    </label>
+    <label>
+      New password
+      <input type="password" [value]="password()" (input)="onInput('password', $event)" autocomplete="new-password" />
+    </label>
+    @if (notice()) {
+      <p class="auth-note">{{ notice() }}</p>
+    }
+    @if (error()) {
+      <p class="auth-error">{{ error() }}</p>
+    }
+    <button type="submit" [disabled]="busy()">Save profile</button>
+    <button type="button" class="auth-danger" (click)="remove()" [disabled]="busy()">Delete account</button>
+  </form>
+</section>

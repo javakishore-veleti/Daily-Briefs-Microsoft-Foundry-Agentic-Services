@@ -66,9 +66,17 @@ class App:
         web_search_api = api_factory.get_web_search_api()
         weather_info_api = api_factory.get_weather_info_api()
         chat_history_api = api_factory.get_chat_history_api()
+        user_api = api_factory.get_user_api()
         router.post("/web-search")(web_search_api.web_search)
         router.post("/weather-info")(weather_info_api.weather_info)
         router.get("/chat-history")(chat_history_api.latest)
+        router.post("/users/signup")(user_api.signup)
+        router.post("/users/signin")(user_api.signin)
+        router.post("/users/forgot-password")(user_api.forgot_password)
+        router.post("/users/reset-password")(user_api.reset_password)
+        router.get("/users/{user_id}")(user_api.get_profile)
+        router.put("/users/{user_id}")(user_api.update_profile)
+        router.delete("/users/{user_id}")(user_api.delete_profile)
         return router
 
 

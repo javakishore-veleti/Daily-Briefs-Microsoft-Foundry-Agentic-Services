@@ -61,6 +61,14 @@ class GenericEntityMgr[T: AbstractBaseEntity](AbstractCrudDao[T]):
         if result.matched_count == 0:
             raise ValueError(f"entity id {entity_id} was not found")
 
+    def touch(self, entity_id: str) -> None:
+        if not entity_id.strip():
+            return
+        self._collection().update_one(
+            {"_id": entity_id},
+            {"$set": {"updated_at": datetime.now()}},
+        )
+
     def delete(self, id: str) -> None:
         self._collection().delete_one({"_id": id})
 
@@ -114,12 +122,44 @@ def collection_name_for(entity_type: type) -> str:
 
 def _session_title(messages: list[ChatHistory]) -> str:
     for item in messages:
-        if item.role == "user" and item.message.strip():
-            compact = " ".join(item.message.split())
+        text = _user_prompt(item)
+        if text:
+            compact = " ".join(text.split())
             if len(compact) <= 42:
                 return compact
             return f"{compact[:42].rstrip()}…"
     return "New chat"
+
+
+def _user_prompt(item: ChatHistory) -> str:
+    if str(getattr(item, "user_prompt_id", "") or "").strip():
+        return ""
+    prompt = str(getattr(item, "user_prompt", "") or "").strip()
+    if prompt:
+        return prompt
+    if str(getattr(item, "role", "") or "") == "user":
+        return str(getattr(item, "message", "") or "").strip()
+    return ""
+
+
+def _ordered_turns(messages: list[ChatHistory]) -> list[ChatHistory]:
+    prompts: list[ChatHistory] = []
+    replies: dict[str, list[ChatHistory]] = {}
+    for item in messages:
+        prompt_id = str(getattr(item, "user_prompt_id", "") or "").strip()
+        if prompt_id:
+            replies.setdefault(prompt_id, []).append(item)
+            continue
+        if _user_prompt(item):
+            prompts.append(item)
+    prompts.sort(key=lambda item: (int(getattr(item, "sequence", 0) or 0), item.created_at))
+    ordered: list[ChatHistory] = []
+    for prompt in prompts:
+        ordered.append(prompt)
+        group = replies.get(prompt.id, [])
+        group.sort(key=lambda item: (int(getattr(item, "sequence", 0) or 0), item.created_at))
+        ordered.extend(group)
+    return ordered
 
 
 def _document(entity: object) -> dict[str, Any]:
@@ -140,22 +180,37 @@ class ChatHistoryMgr(GenericEntityMgr[ChatHistory]):
         self.name = "ChatHistoryMgr"
         self.description = "A mgr that can store and retrieve chat history"
 
-    def latest_sessions(self, app_module: str, limit: int = 10, skip: int = 0) -> tuple[list[dict[str, Any]], bool]:
+    def init(self) -> None:
+        super().init()
+        self.pair_turns()
+
+    def latest_sessions(
+        self,
+        app_module: str,
+        limit: int = 10,
+        skip: int = 0,
+        owned_session_ids: list[str] | None = None,
+    ) -> tuple[list[dict[str, Any]], bool]:
         self._require_init()
         if limit < 1 or limit > self.latest_limit:
             raise ValueError(f"limit must be from 1 to {self.latest_limit}")
         if skip < 0:
             raise ValueError("skip must be 0 or greater")
+        if owned_session_ids is not None and not owned_session_ids:
+            return [], False
         collection = self._collection()
         self._ensure_index(
             collection,
             "app_module_created_at_desc",
             [("app_module", ASCENDING), ("created_at", DESCENDING)],
         )
+        match: dict[str, Any] = {"app_module": app_module}
+        if owned_session_ids is not None:
+            match["chat_session_id"] = {"$in": owned_session_ids}
         grouped = list(
             collection.aggregate(
                 [
-                    {"$match": {"app_module": app_module}},
+                    {"$match": match},
                     {
                         "$group": {
                             "_id": "$chat_session_id",
@@ -187,7 +242,7 @@ class ChatHistoryMgr(GenericEntityMgr[ChatHistory]):
         sessions: list[dict[str, Any]] = []
         for item in page:
             session_id = str(item.get("_id") or "")
-            messages = by_session.get(session_id, [])
+            messages = _ordered_turns(by_session.get(session_id, []))
             conversation_id = next((message.conversation_id for message in reversed(messages) if message.conversation_id), "")
             sessions.append(
                 {
@@ -200,6 +255,151 @@ class ChatHistoryMgr(GenericEntityMgr[ChatHistory]):
                 }
             )
         return sessions, has_more
+
+    def user_messages(self, app_module: str, session_id: str) -> list[str]:
+        self._require_init()
+        documents = self._collection().find(
+            {
+                "app_module": app_module,
+                "chat_session_id": session_id,
+                "user_prompt": {"$nin": [None, ""]},
+                "user_prompt_id": {"$in": [None, ""]},
+            },
+            {"user_prompt": 1},
+        ).sort("updated_at", DESCENDING)
+        return [str(document.get("user_prompt") or "").strip() for document in documents if document.get("user_prompt")]
+
+    def find_prompt(self, app_module: str, session_id: str, text: str) -> ChatHistory | None:
+        self._require_init()
+        prompt = text.strip()
+        if not prompt:
+            return None
+        document = self._collection().find_one(
+            {
+                "app_module": app_module,
+                "chat_session_id": session_id,
+                "user_prompt": prompt,
+                "user_prompt_id": {"$in": [None, ""]},
+            }
+        )
+        if document is None:
+            return None
+        return self._entity(document)
+
+    def next_prompt_sequence(self, app_module: str, session_id: str) -> int:
+        self._require_init()
+        document = self._collection().find_one(
+            {
+                "app_module": app_module,
+                "chat_session_id": session_id,
+                "user_prompt": {"$nin": [None, ""]},
+                "user_prompt_id": {"$in": [None, ""]},
+            },
+            sort=[("sequence", DESCENDING)],
+        )
+        if document is None:
+            return 1
+        return int(document.get("sequence") or 0) + 1
+
+    def next_response_sequence(self, user_prompt_id: str) -> int:
+        self._require_init()
+        document = self._collection().find_one(
+            {"user_prompt_id": user_prompt_id},
+            sort=[("sequence", DESCENDING)],
+        )
+        if document is None:
+            return 1
+        return int(document.get("sequence") or 0) + 1
+
+    def pair_turns(self) -> None:
+        self._require_init()
+        self._link_role_rows()
+        self._split_combined_rows()
+
+    def _link_role_rows(self) -> None:
+        collection = self._collection()
+        pending = list(
+            collection.find(
+                {
+                    "role": {"$in": ["user", "assistant"]},
+                    "user_prompt_id": {"$in": [None, ""]},
+                }
+            ).sort([("chat_session_id", ASCENDING), ("created_at", ASCENDING)])
+        )
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for document in pending:
+            grouped.setdefault(str(document.get("chat_session_id") or ""), []).append(document)
+        for documents in grouped.values():
+            canonical: dict[str, str] = {}
+            counts: dict[str, int] = {}
+            prompt_sequence = 0
+            current_id = ""
+            for document in documents:
+                if document.get("role") == "user":
+                    text = str(document.get("message") or "").strip()
+                    existing_id = canonical.get(text, "")
+                    if text and existing_id:
+                        current_id = existing_id
+                        collection.delete_one({"_id": document.get("_id")})
+                        continue
+                    prompt_sequence += 1
+                    collection.update_one(
+                        {"_id": document.get("_id")},
+                        {
+                            "$set": {
+                                "user_prompt": text,
+                                "sequence": prompt_sequence,
+                                "updated_at": datetime.now(),
+                            },
+                            "$unset": {"message": "", "role": "", "agent_response": "", "user_prompt_id": ""},
+                        },
+                    )
+                    current_id = str(document.get("_id") or "")
+                    if text:
+                        canonical[text] = current_id
+                    continue
+                if document.get("role") != "assistant" or not current_id:
+                    continue
+                counts[current_id] = counts.get(current_id, 0) + 1
+                collection.update_one(
+                    {"_id": document.get("_id")},
+                    {
+                        "$set": {
+                            "agent_response": str(document.get("message") or ""),
+                            "user_prompt_id": current_id,
+                            "sequence": counts[current_id],
+                            "updated_at": datetime.now(),
+                        },
+                        "$unset": {"message": "", "role": "", "user_prompt": ""},
+                    },
+                )
+
+    def _split_combined_rows(self) -> None:
+        collection = self._collection()
+        combined = list(
+            collection.find(
+                {
+                    "user_prompt": {"$nin": [None, ""]},
+                    "agent_response": {"$nin": [None, ""]},
+                    "user_prompt_id": {"$in": [None, ""]},
+                }
+            )
+        )
+        for document in combined:
+            prompt_id = str(document.get("_id") or "")
+            response = ChatHistory()
+            response.app_module = str(document.get("app_module") or "")
+            response.chat_session_id = str(document.get("chat_session_id") or "")
+            response.conversation_id = str(document.get("conversation_id") or "")
+            response.model_name = str(document.get("model_name") or "")
+            response.user_prompt_id = prompt_id
+            response.agent_response = str(document.get("agent_response") or "")
+            response.sequence = self.next_response_sequence(prompt_id)
+            del response.user_prompt
+            del response.message
+            del response.role
+            self.store(response)
+            collection.update_one({"_id": document.get("_id")}, {"$unset": {"agent_response": ""}})
 
     def session_ids(self) -> list[str]:
         values = self._collection().distinct("chat_session_id")
@@ -216,7 +416,9 @@ class ChatSessionMgr(GenericEntityMgr[ChatSession]):
         existing = self.get(session_id)
         if existing is not None:
             existing.session_id = session_id
-            if not existing.user_id:
+            if user_id and user_id != ANONYMOUS_USER_ID:
+                existing.user_id = user_id
+            elif not existing.user_id:
                 existing.user_id = user_id
             self.update(existing)
             return existing
@@ -232,6 +434,17 @@ class ChatSessionMgr(GenericEntityMgr[ChatSession]):
                 return stored
             raise
         return session
+
+    def ids_for_user(self, user_id: str) -> list[str]:
+        if not user_id.strip():
+            return []
+        found = self._collection().find({"user_id": user_id}, {"session_id": 1, "_id": 1})
+        session_ids: list[str] = []
+        for document in found:
+            session_id = str(document.get("session_id") or document.get("_id") or "")
+            if session_id:
+                session_ids.append(session_id)
+        return session_ids
 
 
 class ChatUserMgr(GenericEntityMgr[ChatUser]):
@@ -255,3 +468,21 @@ class ChatUserMgr(GenericEntityMgr[ChatUser]):
                 return stored
             raise
         return user
+
+    def find_by_email(self, email: str) -> ChatUser | None:
+        self._ensure_email_index()
+        document = self._collection().find_one({"email": email})
+        if document is None:
+            return None
+        return self._entity(document)
+
+    def _ensure_email_index(self) -> None:
+        collection = self._collection()
+        marker = f"{collection.full_name}:email_unique"
+        if marker in self.indexed_collections:
+            return
+        with self.index_guard:
+            if marker in self.indexed_collections:
+                return
+            collection.create_index([("email", ASCENDING)], name="email_unique", unique=True)
+            self.indexed_collections.add(marker)

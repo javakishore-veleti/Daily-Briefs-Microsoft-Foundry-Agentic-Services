@@ -1,0 +1,70 @@
+<section class="auth-screen">
+  <form class="auth-card" (submit)="submit(); $event.preventDefault()">
+    <p class="brand">Enterprise Briefs</p>
+    @if (mode() === 'signup') {
+      <h1>Create an account</h1>
+      <label>
+        Name
+        <input [value]="name()" (input)="onInput('name', $event)" autocomplete="name" />
+      </label>
+      <label>
+        Phone
+        <input [value]="phone()" (input)="onInput('phone', $event)" autocomplete="tel" />
+      </label>
+    } @else if (mode() === 'forgot') {
+      <h1>Reset your password</h1>
+      <p class="auth-note">This local portal shows the reset code here. It expires in 15 minutes.</p>
+    } @else {
+      <h1>Sign in</h1>
+    }
+    <label>
+      {{ mode() === 'signup' ? 'Email' : 'User' }}
+      <input
+        [type]="mode() === 'signup' ? 'email' : 'text'"
+        [value]="email()"
+        (input)="onInput('email', $event)"
+        [attr.autocomplete]="mode() === 'signup' ? 'email' : 'username'"
+        required
+      />
+    </label>
+    @if (mode() !== 'forgot' || issuedCode()) {
+      <label>
+        {{ mode() === 'forgot' ? 'New password' : 'Password' }}
+        <input type="password" [value]="password()" (input)="onInput('password', $event)" autocomplete="current-password" required />
+      </label>
+    }
+    @if (issuedCode()) {
+      <p class="auth-code">Reset code: {{ issuedCode() }}</p>
+      <label>
+        Reset code
+        <input [value]="resetCode()" (input)="onInput('resetCode', $event)" inputmode="numeric" required />
+      </label>
+    }
+    @if (notice()) {
+      <p class="auth-note">{{ notice() }}</p>
+    }
+    @if (error()) {
+      <p class="auth-error">{{ error() }}</p>
+    }
+    <button type="submit" [disabled]="busy()">
+      @if (mode() === 'signup') {
+        Create account
+      } @else if (mode() === 'forgot') {
+        {{ issuedCode() ? 'Update password' : 'Send reset code' }}
+      } @else {
+        Sign in
+      }
+    </button>
+    <p class="auth-links">
+      @if (mode() !== 'signin') {
+        <a routerLink="/signin">Sign in</a>
+      }
+      @if (mode() !== 'signup') {
+        <a routerLink="/signup">Sign up</a>
+      }
+      @if (mode() !== 'forgot') {
+        <a routerLink="/forgot-password">Forgot password</a>
+      }
+    </p>
+  </form>
+</section>
