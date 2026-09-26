@@ -29,13 +29,13 @@ start() {
     echo "portal http://${HOST}:${PORT}"
     exit 0
   fi
-  if [ ! -d "$ROOT/portals/node_modules" ]; then
-    echo "portals dependencies are missing. Run npm install in portals/ first."
+  if [ ! -d "$ROOT/portals/enterprise-briefs/node_modules" ]; then
+    echo "enterprise-briefs dependencies are missing. Run npm install in portals/enterprise-briefs first."
     exit 1
   fi
   rm -f "$PID_FILE"
   (
-    cd "$ROOT/portals"
+    cd "$ROOT/portals/enterprise-briefs"
     npm start -- --host "$HOST" --port "$PORT"
   ) >"$LOG_FILE" 2>&1 &
   echo $! >"$PID_FILE"

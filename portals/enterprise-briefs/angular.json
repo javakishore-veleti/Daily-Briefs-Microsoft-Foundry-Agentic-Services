@@ -3,7 +3,7 @@
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
-    "portals": {
+    "enterprise-briefs": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -39,7 +39,7 @@
         "build": {
           "builder": "@angular-devkit/build-angular:application",
           "options": {
-            "outputPath": "dist/portals",
+            "outputPath": "dist/enterprise-briefs",
             "index": "src/index.html",
             "browser": "src/main.ts",
             "polyfills": [
@@ -86,10 +86,10 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "portals:build:production"
+              "buildTarget": "enterprise-briefs:build:production"
             },
             "development": {
-              "buildTarget": "portals:build:development"
+              "buildTarget": "enterprise-briefs:build:development"
             }
           },
           "defaultConfiguration": "development"

@@ -7,9 +7,9 @@ export interface BriefMenu {
 
 export const BRIEF_MENUS: BriefMenu[] = [
   {
-    id: 'web-search',
-    label: 'Web Search',
-    description: 'Ask a question and keep the thread.',
+    id: 'daily-briefs-search',
+    label: 'Daily Briefs Search',
+    description: 'Searches the web first, then answers from what it finds.',
     endpoint: '/api/v1/daily-briefs/web-search',
   },
 ];
