@@ -2,6 +2,7 @@ from typing import override
 
 from middleware.adapters.azure.ms_foundry.constants import AGENT_NAME_WEB_SEARCH
 from middleware.adapters.azure.ms_foundry.objects_factory import ObjectsFactory
+from middleware.common.app_exec_contants import AppExecConstants
 from middleware.common.dtos.common import AppCtx
 from middleware.common.dtos.web_search_dtos import WebSearchReq, WebSearchResp
 from middleware.common.interfaces.adapters import AppAdapter
@@ -43,4 +44,4 @@ class WebSearchAdapter(AppAdapter[WebSearchReq, WebSearchResp]):
         output_text = response.output_text
         ctx.resp.results["output_text"] = output_text
         ctx.resp.ctx_data["conversation_id"] = conversation_id
-        return 0
+        return AppExecConstants.SUCCESS
