@@ -1,10 +1,14 @@
+from typing import override
+
 from middleware.adapters.azure.ms_foundry.constants import AGENT_NAME_WEB_SEARCH
 from middleware.adapters.azure.ms_foundry.objects_factory import ObjectsFactory
-from middleware.common.dtos.web_search_dtos import WebSearchCtx
+from middleware.common.dtos.common import AppCtx
+from middleware.common.dtos.web_search_dtos import WebSearchReq, WebSearchResp
+from middleware.common.interfaces.adapters import AppAdapter
 from middleware.common.utils.session_cache import SessionCache
 
 
-class WebSearchAdapter:
+class WebSearchAdapter(AppAdapter[WebSearchReq, WebSearchResp]):
     def __init__(self):
         self.name = "WebSearchAdapter"
         self.description = "An adapter that can search the web for information"
@@ -12,20 +16,17 @@ class WebSearchAdapter:
     def get_or_create_conversation_id(self, session_id: str, objects_factory: ObjectsFactory) -> str:
         session_cache = SessionCache.get_instance()
         session = session_cache.get(session_id)
-        if not session:
-            session = {"conversation_id": None}
-            session_cache.set(session_id, session)
-        conversation_id = session["conversation_id"]
+        conversation_id = session.get("conversation_id")
         if isinstance(conversation_id, str) and conversation_id:
             return conversation_id
 
         conversation = objects_factory.get_open_ai_client().conversations.create()
         conversation_id = conversation.id
-        session["conversation_id"] = conversation_id
-        session_cache.set(session_id, session)
+        session_cache.set(session_id, {**session, "conversation_id": conversation_id})
         return conversation_id
 
-    def run(self, ctx: WebSearchCtx) -> int:
+    @override
+    def run(self, ctx: AppCtx[WebSearchReq, WebSearchResp]) -> int:
         objects_factory = ObjectsFactory.get_instance()
         conversation_id = self.get_or_create_conversation_id(ctx.req.session_id, objects_factory)
 
