@@ -1,0 +1,42 @@
+name: AzureFoundry-002-Agent-WebSearch-Delete
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: foundry-web-search-agent
+  cancel-in-progress: false
+
+jobs:
+  delete:
+    name: Delete web-search-agent
+    runs-on: ubuntu-latest
+    env:
+      FOUNDRY_PROJECT_ENDPOINT: ${{ secrets.FOUNDRY_PROJECT_ENDPOINT }}
+      FOUNDRY_API_KEY: ${{ secrets.FOUNDRY_API_KEY }}
+    steps:
+      - name: Delete agent
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${FOUNDRY_PROJECT_ENDPOINT}" ] || [ -z "${FOUNDRY_API_KEY}" ]; then
+            echo "Add FOUNDRY_PROJECT_ENDPOINT and FOUNDRY_API_KEY as repository secrets."
+            exit 1
+          fi
+          endpoint="${FOUNDRY_PROJECT_ENDPOINT%/}"
+          status=$(curl -sS -o /tmp/agent-delete.json -w "%{http_code}" \
+            -X DELETE "${endpoint}/agents/web-search-agent?api-version=v1" \
+            -H "api-key: ${FOUNDRY_API_KEY}" \
+            -H "Accept: application/json")
+          echo "status=${status}"
+          if [ "${status}" = "404" ]; then
+            echo "web-search-agent is already absent."
+            exit 0
+          fi
+          python3 -c 'import pathlib; print(pathlib.Path("/tmp/agent-delete.json").read_text()[:2000])'
+          if [ "${status}" -lt 200 ] || [ "${status}" -ge 300 ]; then
+            exit 1
+          fi

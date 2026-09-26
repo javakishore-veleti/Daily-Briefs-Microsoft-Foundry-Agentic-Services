@@ -1,0 +1,70 @@
+name: AzureFoundry-001-Agent-WebSearch-Create
+
+on:
+  workflow_dispatch:
+    inputs:
+      model_deployment:
+        description: Model deployment the web search agent should use
+        required: true
+        type: choice
+        default: gpt-5-mini
+        options:
+          - gpt-4o
+          - gpt-5-mini
+          - gpt-5.4-mini
+
+permissions:
+  contents: read
+
+concurrency:
+  group: foundry-web-search-agent
+  cancel-in-progress: false
+
+jobs:
+  create:
+    name: Create web-search-agent
+    runs-on: ubuntu-latest
+    env:
+      FOUNDRY_PROJECT_ENDPOINT: ${{ secrets.FOUNDRY_PROJECT_ENDPOINT }}
+      FOUNDRY_API_KEY: ${{ secrets.FOUNDRY_API_KEY }}
+      MODEL_DEPLOYMENT: ${{ inputs.model_deployment }}
+    steps:
+      - name: Create agent version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${FOUNDRY_PROJECT_ENDPOINT}" ] || [ -z "${FOUNDRY_API_KEY}" ]; then
+            echo "Add FOUNDRY_PROJECT_ENDPOINT and FOUNDRY_API_KEY as repository secrets."
+            exit 1
+          fi
+          endpoint="${FOUNDRY_PROJECT_ENDPOINT%/}"
+          instructions="You are a web search assistant. Search the web first, then answer from what you find. Keep the answer short."
+          case "${MODEL_DEPLOYMENT}" in
+            gpt-4o)
+              definition=$(printf '%s' "${instructions}" | python3 -c 'import json,sys; instructions=sys.stdin.read(); print(json.dumps({"definition": {"kind": "prompt", "model": "gpt-4o", "instructions": instructions, "tools": [{"type": "web_search_preview"}]}}))')
+              ;;
+            gpt-5-mini|gpt-5.4-mini)
+              definition=$(printf '%s' "${instructions}" | MODEL_DEPLOYMENT="${MODEL_DEPLOYMENT}" python3 -c 'import json,os,sys; instructions=sys.stdin.read(); print(json.dumps({"definition": {"kind": "prompt", "model": os.environ["MODEL_DEPLOYMENT"], "instructions": instructions, "tools": [{"type": "web_search", "search_context_size": "low"}], "reasoning": {"effort": "minimal"}}}))')
+              ;;
+            *)
+              echo "Unsupported model deployment: ${MODEL_DEPLOYMENT}"
+              exit 1
+              ;;
+          esac
+          status=$(curl -sS -o /tmp/agent-create.json -w "%{http_code}" \
+            -X POST "${endpoint}/agents/web-search-agent/versions?api-version=v1" \
+            -H "api-key: ${FOUNDRY_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            --data "${definition}")
+          echo "model=${MODEL_DEPLOYMENT} status=${status}"
+          python3 -c 'import json,pathlib; raw=pathlib.Path("/tmp/agent-create.json").read_text();
+try:
+ body=json.loads(raw) if raw else {}
+ picked={k: body.get(k) for k in ("name","version","id") if isinstance(body, dict) and k in body}
+ print(json.dumps(picked or body, indent=2)[:2000])
+except json.JSONDecodeError:
+ print(raw[:2000])'
+          if [ "${status}" -lt 200 ] || [ "${status}" -ge 300 ]; then
+            exit 1
+          fi
