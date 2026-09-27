@@ -96,28 +96,42 @@ class ObjectsFactory:
 
         self.objects[store_key] = agent
 
+    def _configured_model(self) -> str:
+        return AppConfig.get_instance().get_model_deployment_name()
+
+    def _reasoning_for_model(self) -> Reasoning | None:
+        if not self._configured_model().startswith("gpt-5"):
+            return None
+        return Reasoning(effort=self._web_search_reasoning_effort())
+
+    def _prompt_definition(self, instructions: str, tools: list) -> PromptAgentDefinition:
+        kwargs = {
+            "model": self._configured_model(),
+            "instructions": instructions,
+            "tools": tools,
+        }
+        reasoning = self._reasoning_for_model()
+        if reasoning is not None:
+            kwargs["reasoning"] = reasoning
+        return PromptAgentDefinition(**kwargs)
+
     def _web_search_agent_definition(self) -> PromptAgentDefinition:
-        return PromptAgentDefinition(
-            model=AppConfig.get_instance().get_model_deployment_name(),
-            instructions="You are a web search assistantagent. You are tasked with searching the web for information.",
-            tools=[WebSearchPreviewTool()],
-            reasoning=Reasoning(effort=self._web_search_reasoning_effort()),
+        return self._prompt_definition(
+            "You are a web search assistantagent. You are tasked with searching the web for information.",
+            [WebSearchPreviewTool()],
         )
 
     def _weather_agent_definition(self) -> PromptAgentDefinition:
-        return PromptAgentDefinition(
-            model=AppConfig.get_instance().get_model_deployment_name(),
-            instructions=self._weather_instructions(),
-            tools=[WeatherOpenApiDefTool().initialize_weather_opena_api_tool_def()],
-            reasoning=Reasoning(effort=self._web_search_reasoning_effort()),
+        return self._prompt_definition(
+            self._weather_instructions(),
+            [WeatherOpenApiDefTool().initialize_weather_opena_api_tool_def()],
         )
 
     def _create_agent_with_api_key(self, api_key: str, agent_name: str, definition: PromptAgentDefinition) -> None:
         logger = get_logger(__name__)
         endpoint = AppConfig.get_instance().get_foundry_project_endpoint().rstrip("/")
-        instructions = str(getattr(definition, "instructions", "") or "")
         existing = self._agent_text_with_api_key(api_key, endpoint, agent_name)
-        if instructions and instructions in existing:
+        if self._api_key_agent_is_current(existing, definition):
             logger.info("agent_name=%s already current", agent_name)
             return
         url = f"{endpoint}/agents/{agent_name}/versions?api-version=v1"
@@ -185,8 +199,29 @@ class ObjectsFactory:
             return getattr(agent, "definition", None)
         return definition
 
+    def _published_model(self, existing: str) -> str:
+        try:
+            body = json.loads(existing)
+        except json.JSONDecodeError:
+            return ""
+        versions = body.get("versions") if isinstance(body, dict) else None
+        latest = versions.get("latest") if isinstance(versions, dict) else None
+        definition = latest.get("definition") if isinstance(latest, dict) else None
+        if not isinstance(definition, dict):
+            return ""
+        return str(definition.get("model") or "")
+
+    def _api_key_agent_is_current(self, existing: str, definition: PromptAgentDefinition) -> bool:
+        instructions = str(getattr(definition, "instructions", "") or "")
+        if not instructions or instructions not in existing:
+            return False
+        return self._published_model(existing) == self._configured_model()
+
     def _agent_needs_version_update(self, agent_name: str, agent: AgentDetails | AgentVersionDetails) -> bool:
         definition = self._latest_definition(agent)
+        published = str(getattr(definition, "model", "") or "")
+        if published != self._configured_model():
+            return True
         if agent_name == AGENT_NAME_WEB_SEARCH:
             reasoning = getattr(definition, "reasoning", None)
             effort = getattr(reasoning, "effort", None)
