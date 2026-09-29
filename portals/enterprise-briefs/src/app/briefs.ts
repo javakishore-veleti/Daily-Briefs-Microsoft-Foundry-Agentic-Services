@@ -24,6 +24,14 @@ export const BRIEF_MENUS: BriefMenu[] = [
     placeholder: 'Ask about the weather',
     pending: 'Checking the weather…',
   },
+  {
+    id: 'hr-daily-brief',
+    label: 'HR Daily Brief',
+    description: 'Lists new joiners and answers questions about the selected joiner.',
+    endpoint: '/api/v1/daily-briefs/hr-assistant',
+    placeholder: 'Ask about this joiner',
+    pending: 'Asking the HR assistant…',
+  },
 ];
 
 export function briefById(id: string): BriefMenu | undefined {

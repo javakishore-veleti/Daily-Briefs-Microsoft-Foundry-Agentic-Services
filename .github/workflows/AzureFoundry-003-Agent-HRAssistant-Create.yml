@@ -1,0 +1,74 @@
+name: AzureFoundry-003-Agent-HRAssistant-Create
+
+on:
+  workflow_dispatch:
+    inputs:
+      model_deployment:
+        description: Model deployment the HR assistant agent should use
+        required: true
+        type: choice
+        default: gpt-4.1
+        options:
+          - gpt-4.1
+          - gpt-4o
+          - gpt-5-mini
+          - gpt-5.4-mini
+      still_run:
+        description: Agent Created Already In Code, Do You Still Run This Github Action?
+        required: true
+        type: choice
+        default: "no"
+        options:
+          - "no"
+          - "yes"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: foundry-hr-assistant-agent
+  cancel-in-progress: false
+
+jobs:
+  create:
+    name: Create hr-assistant-agent
+    if: inputs.still_run == 'yes'
+    runs-on: ubuntu-latest
+    env:
+      FOUNDRY_PROJECT_ENDPOINT: ${{ secrets.FOUNDRY_PROJECT_ENDPOINT }}
+      FOUNDRY_API_KEY: ${{ secrets.FOUNDRY_API_KEY }}
+      MODEL_DEPLOYMENT: ${{ inputs.model_deployment }}
+    steps:
+      - name: Create agent version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${FOUNDRY_PROJECT_ENDPOINT}" ] || [ -z "${FOUNDRY_API_KEY}" ]; then
+            echo "Add FOUNDRY_PROJECT_ENDPOINT and FOUNDRY_API_KEY as repository secrets."
+            exit 1
+          fi
+          endpoint="${FOUNDRY_PROJECT_ENDPOINT%/}"
+          instructions="You are an HR assistant. Answer questions about the new joiner named in this conversation. Answer resumes, personal interests, and food preferences only from the Memory context included with the question. If that Memory context does not contain the fact, say you have no memory for it yet. Follow-up questions stay on that joiner. If the question is not about that joiner, say that you only answer questions about that joiner."
+          case "${MODEL_DEPLOYMENT}" in
+            gpt-4.1|gpt-4o)
+              definition=$(printf '%s' "${instructions}" | MODEL_DEPLOYMENT="${MODEL_DEPLOYMENT}" python3 -c 'import json,os,sys; instructions=sys.stdin.read(); print(json.dumps({"definition": {"kind": "prompt", "model": os.environ["MODEL_DEPLOYMENT"], "instructions": instructions}}))')
+              ;;
+            gpt-5-mini|gpt-5.4-mini)
+              definition=$(printf '%s' "${instructions}" | MODEL_DEPLOYMENT="${MODEL_DEPLOYMENT}" python3 -c 'import json,os,sys; instructions=sys.stdin.read(); print(json.dumps({"definition": {"kind": "prompt", "model": os.environ["MODEL_DEPLOYMENT"], "instructions": instructions, "reasoning": {"effort": "minimal"}}}))')
+              ;;
+            *)
+              echo "Unsupported model deployment: ${MODEL_DEPLOYMENT}"
+              exit 1
+              ;;
+          esac
+          status=$(curl -sS -o /tmp/agent-create.json -w "%{http_code}" \
+            -X POST "${endpoint}/agents/hr-assistant-agent/versions?api-version=v1" \
+            -H "api-key: ${FOUNDRY_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            --data "${definition}")
+          echo "model=${MODEL_DEPLOYMENT} status=${status}"
+          python3 -c 'import pathlib; print(pathlib.Path("/tmp/agent-create.json").read_text()[:2000])'
+          if [ "${status}" -lt 200 ] || [ "${status}" -ge 300 ]; then
+            exit 1
+          fi

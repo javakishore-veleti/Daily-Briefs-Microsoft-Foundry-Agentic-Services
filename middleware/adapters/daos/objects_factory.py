@@ -1,10 +1,14 @@
 from typing import ClassVar
 
+from datetime import date
+
 from middleware.adapters.daos.mongodb.impl.generic_entity_mgr import (
     ChatHistoryMgr,
     ChatSessionMgr,
     ChatUserMgr,
     GenericEntityMgr,
+    JoinerInfoMgr,
+    JoinerPreferencesMgr,
 )
 from middleware.common.dtos.app_config import AppConfig
 from middleware.common.entity.abstract_base_entity import AbstractBaseEntity
@@ -39,7 +43,10 @@ class ObjectsFactory:
         self.get_chat_history_mgr()
         self.get_chat_session_mgr()
         self.get_chat_user_mgr()
+        self.get_joiner_info_mgr()
+        self.get_joiner_preferences_mgr()
         self._ensure_sessions_for_history()
+        self.get_joiner_info_mgr().ensure_samples(date.today().isoformat())
 
     def get_chat_history_mgr(self) -> ChatHistoryMgr:
         return self._ensure_mgr("chat_history_mgr", ChatHistoryMgr)
@@ -49,6 +56,12 @@ class ObjectsFactory:
 
     def get_chat_user_mgr(self) -> ChatUserMgr:
         return self._ensure_mgr("chat_user_mgr", ChatUserMgr)
+
+    def get_joiner_info_mgr(self) -> JoinerInfoMgr:
+        return self._ensure_mgr("joiner_info_mgr", JoinerInfoMgr)
+
+    def get_joiner_preferences_mgr(self) -> JoinerPreferencesMgr:
+        return self._ensure_mgr("joiner_preferences_mgr", JoinerPreferencesMgr)
 
     def _ensure_sessions_for_history(self) -> None:
         user = self.get_chat_user_mgr().ensure_anonymous()

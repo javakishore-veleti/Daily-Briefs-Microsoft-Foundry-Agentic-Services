@@ -13,16 +13,33 @@ from middleware.common.utils.logger_util import get_logger, log_methods
 
 @log_methods
 class ChatHistoryApi:
-    def latest(self, brief: str, user_id: str, limit: int = 10, skip: int = 0) -> ChatHistoryListResponse:
+    def latest(
+        self,
+        brief: str,
+        user_id: str,
+        limit: int = 10,
+        skip: int = 0,
+        joiner_info_id: str = "",
+    ) -> ChatHistoryListResponse:
         app_module = AppModule.from_brief(brief)
         if not app_module:
-            raise HTTPException(status_code=400, detail="brief must be daily-briefs-search or weather-agent")
+            raise HTTPException(
+                status_code=400,
+                detail="brief must be daily-briefs-search, weather-agent, or hr-daily-brief",
+            )
         from middleware.api.objects_factory import ObjectsFactory as ApiObjectsFactory
 
         signed_in = ApiObjectsFactory.get_instance().get_user_api().require(user_id)
-        return self._latest(app_module, signed_in, limit, skip)
+        return self._latest(app_module, signed_in, limit, skip, joiner_info_id)
 
-    def _latest(self, app_module: str, user_id: str, limit: int, skip: int) -> ChatHistoryListResponse:
+    def _latest(
+        self,
+        app_module: str,
+        user_id: str,
+        limit: int,
+        skip: int,
+        joiner_info_id: str,
+    ) -> ChatHistoryListResponse:
         logger = get_logger(__name__)
         logger.info("app_module=%s user_id=%s limit=%s skip=%s", app_module, user_id, limit, skip)
         dao = DaoObjectsFactory.get_instance()
@@ -32,6 +49,7 @@ class ChatHistoryApi:
             limit,
             skip,
             owned,
+            joiner_info_id,
         )
         return ChatHistoryListResponse(
             sessions=[self._session(item) for item in sessions],

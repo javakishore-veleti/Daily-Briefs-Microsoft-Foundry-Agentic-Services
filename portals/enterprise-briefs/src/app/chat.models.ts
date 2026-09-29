@@ -48,6 +48,32 @@ export interface ChatHistoryListResponse {
   has_more: boolean;
 }
 
+export interface JoinerInfo {
+  id: string;
+  first_name: string;
+  middle_name: string;
+  last_name: string;
+  email: string;
+  contact_phone: string;
+  contact_address: string;
+  interviewed_by_employee_ids: string[];
+  interviewed_by_employee_names: string[];
+  official_role_name: string;
+  internal_role_name: string;
+  joining_official_role_name: string;
+  salary_accepted_usd: number;
+  joining_date: string;
+  resumes: string;
+  personal_interests: string;
+  food_preferences: string;
+}
+
+export interface JoinerListResponse {
+  joining_date: string;
+  joiners: JoinerInfo[];
+  has_more: boolean;
+}
+
 export interface WebSearchResponse {
   output_text: string;
   conversation_id: string;

@@ -28,6 +28,12 @@ class AppConfig(BaseModel):
             "foundry_project_endpoint": os.getenv("FOUNDRY_PROJECT_ENDPOINT"),
             "foundry_api_key": os.getenv("FOUNDRY_API_KEY", ""),
             "model_deployment_name": os.getenv("MODEL_DEPLOYMENT_NAME"),
+            "text_embedding_model_name": os.getenv("TEXT_EMBEDDING_MODEL_NAME", ""),
+            "hr_memory_store_name": os.getenv("HR_MEMORY_STORE_NAME", "hr-joiner-memory"),
+            "hr_memory_profile_details": os.getenv(
+                "HR_MEMORY_PROFILE_DETAILS",
+                "food preferences, personal interests, and resumes",
+            ),
             "reasoning_effort": os.getenv("REASONING_EFFORT", "minimal"),
             "api_host": os.getenv("API_HOST", "0.0.0.0"),
             "api_port": os.getenv("API_PORT", "8000"),
@@ -46,6 +52,20 @@ class AppConfig(BaseModel):
     def get_model_deployment_name(self) -> str:
         name = self.config.get("model_deployment_name", "")
         return name if isinstance(name, str) else ""
+
+    def get_text_embedding_model_name(self) -> str:
+        name = self.config.get("text_embedding_model_name", "")
+        return name if isinstance(name, str) else ""
+
+    def get_hr_memory_store_name(self) -> str:
+        name = self.config.get("hr_memory_store_name", "hr-joiner-memory")
+        return name.strip() if isinstance(name, str) and name.strip() else "hr-joiner-memory"
+
+    def get_hr_memory_profile_details(self) -> str:
+        details = self.config.get("hr_memory_profile_details", "")
+        if not isinstance(details, str) or not details.strip():
+            return "food preferences, personal interests, and resumes"
+        return details.strip()
 
     def get_reasoning_effort(self) -> str:
         effort = self.config.get("reasoning_effort", "minimal")

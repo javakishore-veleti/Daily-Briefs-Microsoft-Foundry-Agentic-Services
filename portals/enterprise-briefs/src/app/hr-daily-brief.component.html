@@ -1,0 +1,140 @@
+@if (!joinerIdPresent()) {
+  <section class="hr-list">
+    <header class="conversation-head">
+      <h1>{{ menu?.label }}</h1>
+      <p>{{ menu?.description }}</p>
+    </header>
+    <form class="date-row" (submit)="$event.preventDefault()">
+      <label>
+        Joining date
+        <input type="date" [value]="joiningDate()" (change)="onDate($event)" />
+      </label>
+    </form>
+    @if (listError()) {
+      <p class="hr-error">{{ listError() }}</p>
+    } @else if (joiners().length === 0) {
+      <p class="history-empty">No joiners on this date.</p>
+    } @else {
+      <ul class="joiner-list">
+        @for (joiner of joiners(); track joiner.id) {
+          <li>
+            <button type="button" class="joiner-row" (click)="openJoiner(joiner)">
+              <span class="joiner-name">{{ displayName(joiner) }}</span>
+              <span>{{ joiner.joining_official_role_name }}</span>
+              <span>{{ joiner.email }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+    }
+    <div class="pager">
+      <button type="button" class="more-chats" [disabled]="joinerSkip() === 0" (click)="previousPage()">Previous</button>
+      <button type="button" class="more-chats" [disabled]="!joinersHaveMore()" (click)="nextPage()">Next</button>
+    </div>
+  </section>
+} @else {
+  <section class="hr-detail">
+    <p class="back-row"><a routerLink="/hr-daily-brief">All joiners</a></p>
+    @if (detailError()) {
+      <p class="hr-error">{{ detailError() }}</p>
+    }
+    @if (selected(); as joiner) {
+      <section class="record-grid">
+        <article class="record-card">
+          <h2>Joiner info</h2>
+          <dl>
+            <div><dt>Name</dt><dd>{{ displayName(joiner) }}</dd></div>
+            <div><dt>Email</dt><dd>{{ joiner.email }}</dd></div>
+            <div><dt>Phone</dt><dd>{{ joiner.contact_phone }}</dd></div>
+            <div><dt>Address</dt><dd>{{ joiner.contact_address }}</dd></div>
+            <div><dt>Interviewed by</dt><dd>{{ joiner.interviewed_by_employee_names.join(', ') }}</dd></div>
+            <div><dt>Interviewer ids</dt><dd>{{ joiner.interviewed_by_employee_ids.join(', ') }}</dd></div>
+            <div><dt>Official role</dt><dd>{{ joiner.official_role_name }}</dd></div>
+            <div><dt>Internal role</dt><dd>{{ joiner.internal_role_name }}</dd></div>
+            <div><dt>Joining role</dt><dd>{{ joiner.joining_official_role_name }}</dd></div>
+            <div><dt>Salary accepted</dt><dd>{{ money(joiner.salary_accepted_usd) }}</dd></div>
+            <div><dt>Joining date</dt><dd>{{ joiner.joining_date }}</dd></div>
+          </dl>
+        </article>
+        <article class="record-card">
+          <h2>Joiner preferences</h2>
+          <dl>
+            <div><dt>Resumes</dt><dd>{{ joiner.resumes }}</dd></div>
+            <div><dt>Personal interests</dt><dd>{{ joiner.personal_interests }}</dd></div>
+            <div><dt>Food preferences</dt><dd>{{ joiner.food_preferences }}</dd></div>
+          </dl>
+        </article>
+      </section>
+    }
+    <section class="workspace hr-chat">
+      <aside class="history">
+        <button type="button" class="new-chat" (click)="newChat()">New chat</button>
+        <p class="history-label">Conversations</p>
+        @if (threads().length === 0) {
+          <p class="history-empty">No chats yet.</p>
+        }
+        <ul>
+          @for (thread of threads(); track thread.id) {
+            <li>
+              <button
+                type="button"
+                class="thread"
+                [class.thread-active]="thread.id === active()?.id"
+                (click)="openChat(thread.id)"
+              >
+                {{ thread.title }}
+              </button>
+            </li>
+          }
+        </ul>
+        @if (hasMore()) {
+          <button type="button" class="more-chats" (click)="moreHistory()">More</button>
+        }
+      </aside>
+      <section class="conversation">
+        <header class="conversation-head">
+          <h1>Chat</h1>
+          <p>Questions stay on this joiner. The reply is the agent’s text.</p>
+        </header>
+        <div class="transcript" #transcript>
+          @if (isEmpty()) {
+            <p class="welcome">Start a chat about this joiner.</p>
+          }
+          @for (group of groups(); track group.id) {
+            <section class="prompt-group">
+              <article class="bubble bubble-user prompt-top">
+                <p class="who">You</p>
+                <div class="body" [innerHTML]="html(group.prompt)"></div>
+              </article>
+              @for (item of group.responses; track item.id) {
+                <article class="bubble" [class.bubble-failed]="item.failed">
+                  <p class="who">{{ menu?.label }} {{ item.sequence }}</p>
+                  <div class="body" [innerHTML]="html(item.text)"></div>
+                  @if (item.totalTokens !== undefined) {
+                    <p class="usage">
+                      {{ item.inputTokens }} input · {{ item.outputTokens }} output · {{ item.totalTokens }} total
+                    </p>
+                  }
+                </article>
+              }
+            </section>
+          }
+          @if (sending()) {
+            <p class="pending">{{ menu?.pending }}</p>
+          }
+        </div>
+        <form class="composer" (submit)="$event.preventDefault(); send()">
+          <textarea
+            rows="3"
+            [value]="draft()"
+            (input)="onDraft($event)"
+            (keydown)="onComposerKey($event)"
+            [placeholder]="menu?.placeholder"
+            [disabled]="sending()"
+          ></textarea>
+          <button type="submit" [disabled]="sending() || !draft().trim()">Send</button>
+        </form>
+      </section>
+    </section>
+  </section>
+}

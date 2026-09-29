@@ -11,7 +11,11 @@ from azure.ai.projects.models import (
     Reasoning,
     WebSearchPreviewTool,
 )
-from middleware.adapters.azure.ms_foundry.constants import AGENT_NAME_WEATHER, AGENT_NAME_WEB_SEARCH
+from middleware.adapters.azure.ms_foundry.constants import (
+    AGENT_NAME_HR_ASSISTANT,
+    AGENT_NAME_WEATHER,
+    AGENT_NAME_WEB_SEARCH,
+)
 from middleware.adapters.azure.ms_foundry.weather_info.weather_open_api_def_tool import WeatherOpenApiDefTool
 from middleware.common.dtos.app_config import AppConfig
 from middleware.common.utils.logger_util import get_logger, log_methods
@@ -21,6 +25,7 @@ from azure.identity import DefaultAzureCredential
 if TYPE_CHECKING:
     from openai import OpenAI
 
+    from middleware.adapters.azure.ms_foundry.hr_assistant_agent.main import HrAssistantAdapter
     from middleware.adapters.azure.ms_foundry.main_web_search import WebSearchAdapter
     from middleware.adapters.azure.ms_foundry.weather_info.main import WeatherInfoAdapter
 
@@ -36,6 +41,7 @@ class ObjectsFactory:
     def init(self) -> None:
         self.get_web_search_adapter()
         self.get_weather_info_adapter()
+        self.get_hr_assistant_adapter()
 
     def init_ms_foundry_objects(self):
         self._ensure_agent(AGENT_NAME_WEB_SEARCH, self._web_search_agent_definition(), "web_seach_agent")
@@ -49,7 +55,8 @@ class ObjectsFactory:
         openai_base_url = f"{project_endpoint}/openai/v1"
         ms_foundry_project_client = AIProjectClient(
             endpoint=project_endpoint,
-            credential=DefaultAzureCredential()
+            credential=DefaultAzureCredential(),
+            allow_preview=True,
         )
         api_key = config.get_foundry_api_key()
         client_kwargs = {"base_url": openai_base_url}
@@ -108,8 +115,9 @@ class ObjectsFactory:
         kwargs = {
             "model": self._configured_model(),
             "instructions": instructions,
-            "tools": tools,
         }
+        if tools:
+            kwargs["tools"] = tools
         reasoning = self._reasoning_for_model()
         if reasoning is not None:
             kwargs["reasoning"] = reasoning
@@ -126,6 +134,9 @@ class ObjectsFactory:
             self._weather_instructions(),
             [WeatherOpenApiDefTool().initialize_weather_opena_api_tool_def()],
         )
+
+    def _hr_assistant_agent_definition(self) -> PromptAgentDefinition:
+        return self._prompt_definition(self._hr_instructions(), [])
 
     def _create_agent_with_api_key(self, api_key: str, agent_name: str, definition: PromptAgentDefinition) -> None:
         logger = get_logger(__name__)
@@ -190,6 +201,15 @@ class ObjectsFactory:
             "Do not search the web and do not answer questions about people."
         )
 
+    def _hr_instructions(self) -> str:
+        return (
+            "You are an HR assistant. Answer questions about the new joiner named in this conversation. "
+            "Answer resumes, personal interests, and food preferences only from the Memory context included with the question. "
+            "If that Memory context does not contain the fact, say you have no memory for it yet. "
+            "Follow-up questions stay on that joiner. "
+            "If the question is not about that joiner, say that you only answer questions about that joiner."
+        )
+
     def _latest_definition(self, agent: AgentDetails | AgentVersionDetails):
         versions = getattr(agent, "versions", None)
         getter = getattr(versions, "get", None)
@@ -233,6 +253,9 @@ class ObjectsFactory:
             effort = getattr(reasoning, "effort", None)
             current = str(getattr(effort, "value", effort) or "").lower()
             return "Follow-up weather questions use the place already named" not in instructions or current == "minimal"
+        if agent_name == AGENT_NAME_HR_ASSISTANT:
+            instructions = str(getattr(definition, "instructions", "") or "")
+            return "Answer resumes, personal interests, and food preferences only from the Memory context" not in instructions
         return False
 
     def get_web_search_agent(self) -> AgentDetails | AgentVersionDetails:
@@ -260,6 +283,17 @@ class ObjectsFactory:
             self._ensure_agent(AGENT_NAME_WEATHER, self._weather_agent_definition(), "weather_agent")
             self.objects["weather_info_adapter"] = WeatherInfoAdapter()
         return self.objects["weather_info_adapter"]
+
+    def get_hr_assistant_adapter(self) -> "HrAssistantAdapter":
+        from middleware.adapters.azure.ms_foundry.hr_assistant_agent.main import HrAssistantAdapter
+        from middleware.adapters.azure.ms_foundry.hr_assistant_agent.memory_store import HrMemoryStore
+
+        if "hr_assistant_adapter" not in self.objects:
+            self._ensure_agent(AGENT_NAME_HR_ASSISTANT, self._hr_assistant_agent_definition(), "hr_assistant_agent")
+            if "ms_foundry_project_client" in self.objects:
+                HrMemoryStore().ensure(self.get_ms_foundry_project_client())
+            self.objects["hr_assistant_adapter"] = HrAssistantAdapter()
+        return self.objects["hr_assistant_adapter"]
 
     @staticmethod
     def get_instance() -> "ObjectsFactory":

@@ -1,6 +1,7 @@
 from typing import ClassVar
 
 from middleware.api.chat_history_api import ChatHistoryApi
+from middleware.api.hr_assistant_api import HrAssistantApi
 from middleware.api.user_api import UserApi
 from middleware.api.weather_info_api import WeatherInfoApi
 from middleware.api.web_search_api import WebSearchApi
@@ -12,7 +13,7 @@ class ObjectsFactory:
     _instance: ClassVar["ObjectsFactory | None"] = None
 
     def __init__(self) -> None:
-        self.apis: dict[str, WebSearchApi | WeatherInfoApi | ChatHistoryApi | UserApi] = {}
+        self.apis: dict[str, WebSearchApi | WeatherInfoApi | ChatHistoryApi | UserApi | HrAssistantApi] = {}
 
     @staticmethod
     def get_instance() -> "ObjectsFactory":
@@ -39,3 +40,8 @@ class ObjectsFactory:
         if "weather_info_api" not in self.apis:
             self.apis["weather_info_api"] = WeatherInfoApi()
         return self.apis["weather_info_api"]
+
+    def get_hr_assistant_api(self) -> HrAssistantApi:
+        if "hr_assistant_api" not in self.apis:
+            self.apis["hr_assistant_api"] = HrAssistantApi()
+        return self.apis["hr_assistant_api"]

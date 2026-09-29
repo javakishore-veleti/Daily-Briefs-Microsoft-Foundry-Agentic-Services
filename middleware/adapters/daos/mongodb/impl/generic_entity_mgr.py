@@ -18,6 +18,7 @@ from middleware.common.entity.chat_history import (
     ChatSession,
     ChatUser,
 )
+from middleware.common.entity.joiner import JoinerInfo, JoinerPreferences
 
 
 class GenericEntityMgr[T: AbstractBaseEntity](AbstractCrudDao[T]):
@@ -190,6 +191,7 @@ class ChatHistoryMgr(GenericEntityMgr[ChatHistory]):
         limit: int = 10,
         skip: int = 0,
         owned_session_ids: list[str] | None = None,
+        joiner_info_id: str = "",
     ) -> tuple[list[dict[str, Any]], bool]:
         self._require_init()
         if limit < 1 or limit > self.latest_limit:
@@ -207,6 +209,8 @@ class ChatHistoryMgr(GenericEntityMgr[ChatHistory]):
         match: dict[str, Any] = {"app_module": app_module}
         if owned_session_ids is not None:
             match["chat_session_id"] = {"$in": owned_session_ids}
+        if joiner_info_id.strip():
+            match["joiner_info_id"] = joiner_info_id.strip()
         grouped = list(
             collection.aggregate(
                 [
@@ -230,11 +234,12 @@ class ChatHistoryMgr(GenericEntityMgr[ChatHistory]):
         session_ids = [str(item.get("_id") or "") for item in page if item.get("_id")]
         if not session_ids:
             return [], False
+        message_match: dict[str, Any] = {"app_module": app_module, "chat_session_id": {"$in": session_ids}}
+        if joiner_info_id.strip():
+            message_match["joiner_info_id"] = joiner_info_id.strip()
         stored = [
             self._entity(document)
-            for document in collection.find(
-                {"app_module": app_module, "chat_session_id": {"$in": session_ids}}
-            ).sort("created_at", ASCENDING)
+            for document in collection.find(message_match).sort("created_at", ASCENDING)
         ]
         by_session: dict[str, list[ChatHistory]] = {}
         for item in stored:
@@ -269,19 +274,26 @@ class ChatHistoryMgr(GenericEntityMgr[ChatHistory]):
         ).sort("updated_at", DESCENDING)
         return [str(document.get("user_prompt") or "").strip() for document in documents if document.get("user_prompt")]
 
-    def find_prompt(self, app_module: str, session_id: str, text: str) -> ChatHistory | None:
+    def find_prompt(
+        self,
+        app_module: str,
+        session_id: str,
+        text: str,
+        joiner_info_id: str = "",
+    ) -> ChatHistory | None:
         self._require_init()
         prompt = text.strip()
         if not prompt:
             return None
-        document = self._collection().find_one(
-            {
-                "app_module": app_module,
-                "chat_session_id": session_id,
-                "user_prompt": prompt,
-                "user_prompt_id": {"$in": [None, ""]},
-            }
-        )
+        query: dict[str, Any] = {
+            "app_module": app_module,
+            "chat_session_id": session_id,
+            "user_prompt": prompt,
+            "user_prompt_id": {"$in": [None, ""]},
+        }
+        if joiner_info_id.strip():
+            query["joiner_info_id"] = joiner_info_id.strip()
+        document = self._collection().find_one(query)
         if document is None:
             return None
         return self._entity(document)
@@ -486,3 +498,84 @@ class ChatUserMgr(GenericEntityMgr[ChatUser]):
                 return
             collection.create_index([("email", ASCENDING)], name="email_unique", unique=True)
             self.indexed_collections.add(marker)
+
+
+class JoinerInfoMgr(GenericEntityMgr[JoinerInfo]):
+    def __init__(self) -> None:
+        super().__init__(JoinerInfo)
+        self.collection_name = "joiner-info"
+        self.name = "JoinerInfoMgr"
+        self.description = "A mgr that can store and retrieve joiner info"
+
+    def page_for_date(self, joining_date: str, limit: int = 10, skip: int = 0) -> tuple[list[JoinerInfo], bool]:
+        self._require_init()
+        if limit < 1 or limit > self.latest_limit:
+            raise ValueError(f"limit must be from 1 to {self.latest_limit}")
+        if skip < 0:
+            raise ValueError("skip must be 0 or greater")
+        collection = self._collection()
+        self._ensure_index(
+            collection,
+            "joining_date_last_name",
+            [("joining_date", ASCENDING), ("last_name", ASCENDING), ("first_name", ASCENDING)],
+        )
+        cursor = (
+            collection.find({"joining_date": joining_date})
+            .sort([("last_name", ASCENDING), ("first_name", ASCENDING)])
+            .skip(skip)
+            .limit(limit + 1)
+        )
+        rows = [self._entity(document) for document in cursor]
+        has_more = len(rows) > limit
+        return rows[:limit], has_more
+
+    def ensure_samples(self, today: str) -> None:
+        if self._collection().count_documents({}) > 0:
+            return
+        from datetime import date, timedelta
+
+        day = date.fromisoformat(today)
+        samples = [
+            ("Asha", "R", "Reddy", "asha.reddy@example.com", "555-0101", "12 River Road, Vijayawada", ["e-101"], ["Mina Rao"], "Software Engineer", "IC3", "Software Engineer", 92000, today),
+            ("Luis", "", "Martinez", "luis.martinez@example.com", "555-0102", "40 Oak Street, Charlotte", ["e-102", "e-108"], ["Jon Hale", "Priya Shah"], "Program Manager", "M1", "Program Manager", 110000, today),
+            ("Mei", "Lin", "Chen", "mei.chen@example.com", "555-0103", "8 Harbor Lane, Seattle", ["e-104"], ["Noah Kim"], "Data Analyst", "IC2", "Data Analyst", 86000, (day + timedelta(days=1)).isoformat()),
+        ]
+        preferences = JoinerPreferencesMgr()
+        preferences.init()
+        for first, middle, last, email, phone, address, ids, names, official, internal, joining, salary, joining_date in samples:
+            joiner = JoinerInfo()
+            joiner.first_name = first
+            joiner.middle_name = middle
+            joiner.last_name = last
+            joiner.email = email
+            joiner.contact_phone = phone
+            joiner.contact_address = address
+            joiner.interviewed_by_employee_ids = ids
+            joiner.interviewed_by_employee_names = names
+            joiner.official_role_name = official
+            joiner.internal_role_name = internal
+            joiner.joining_official_role_name = joining
+            joiner.salary_accepted_usd = salary
+            joiner.joining_date = joining_date
+            self.store(joiner)
+            preference = JoinerPreferences()
+            preference.joiner_info_id = joiner.id
+            preference.resumes = f"{first} {last} resume: previous role before joining as {joining}."
+            preference.personal_interests = "Reading, hiking, and team sports."
+            preference.food_preferences = "No peanuts."
+            preferences.store(preference)
+
+
+class JoinerPreferencesMgr(GenericEntityMgr[JoinerPreferences]):
+    def __init__(self) -> None:
+        super().__init__(JoinerPreferences)
+        self.collection_name = "joiner-preferences"
+        self.name = "JoinerPreferencesMgr"
+        self.description = "A mgr that can store and retrieve joiner preferences"
+
+    def for_joiner(self, joiner_info_id: str) -> JoinerPreferences | None:
+        self._require_init()
+        document = self._collection().find_one({"joiner_info_id": joiner_info_id})
+        if document is None:
+            return None
+        return self._entity(document)

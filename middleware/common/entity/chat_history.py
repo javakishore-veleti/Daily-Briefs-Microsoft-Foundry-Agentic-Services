@@ -39,3 +39,5 @@ class ChatHistory(AbstractBaseEntity):
         self.model_name:str = ""
         self.model_version:str = ""
         self.model_provider:str = ""
+        # Foreign key to the joiner-info document. Set on HR daily brief chats.
+        self.joiner_info_id:str = ""
