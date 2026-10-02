@@ -61,23 +61,7 @@ jobs:
             exit 1
           fi
           endpoint="${FOUNDRY_PROJECT_ENDPOINT%/}"
-          body=$(CHAT_MODEL="${CHAT_MODEL}" EMBEDDING_MODEL="${EMBEDDING_MODEL}" MEMORY_STORE_NAME="${MEMORY_STORE_NAME}" python3 -c '
-import json, os
-print(json.dumps({
-  "name": os.environ["MEMORY_STORE_NAME"],
-  "description": "Memories for each new joiner in the HR daily brief",
-  "definition": {
-    "kind": "default",
-    "chat_model": os.environ["CHAT_MODEL"],
-    "embedding_model": os.environ["EMBEDDING_MODEL"],
-    "options": {
-      "user_profile_enabled": True,
-      "chat_summary_enabled": True,
-      "user_profile_details": "food preferences, personal interests, and resumes",
-    },
-  },
-}))
-')
+          body=$(python3 -c "import json,os; print(json.dumps({'name': os.environ['MEMORY_STORE_NAME'], 'description': 'Memories for each new joiner in the HR daily brief', 'definition': {'kind': 'default', 'chat_model': os.environ['CHAT_MODEL'], 'embedding_model': os.environ['EMBEDDING_MODEL'], 'options': {'user_profile_enabled': True, 'chat_summary_enabled': True, 'user_profile_details': 'food preferences, personal interests, and resumes'}}}))")
           get_status=$(curl -sS -o /tmp/memory-get.json -w "%{http_code}" \
             -X GET "${endpoint}/memory_stores/${MEMORY_STORE_NAME}?api-version=v1" \
             -H "api-key: ${FOUNDRY_API_KEY}" \
@@ -90,7 +74,7 @@ print(json.dumps({
               -H "Accept: application/json")
             echo "delete status=${del_status}"
             if [ "${del_status}" -lt 200 ] || [ "${del_status}" -ge 300 ]; then
-              python3 -c 'import pathlib; print(pathlib.Path("/tmp/memory-delete.json").read_text()[:2000])'
+              python3 -c "import pathlib; print(pathlib.Path('/tmp/memory-delete.json').read_text()[:2000])"
               exit 1
             fi
           fi
@@ -101,7 +85,7 @@ print(json.dumps({
             -H "Accept: application/json" \
             --data "${body}")
           echo "create status=${status}"
-          python3 -c 'import pathlib; print(pathlib.Path("/tmp/memory-create.json").read_text()[:2000])'
+          python3 -c "import pathlib; print(pathlib.Path('/tmp/memory-create.json').read_text()[:2000])"
           if [ "${status}" -lt 200 ] || [ "${status}" -ge 300 ]; then
             exit 1
           fi
