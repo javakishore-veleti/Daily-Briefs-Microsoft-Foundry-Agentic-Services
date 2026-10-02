@@ -62,25 +62,22 @@ jobs:
           fi
           endpoint="${FOUNDRY_PROJECT_ENDPOINT%/}"
           body=$(python3 -c "import json,os; print(json.dumps({'name': os.environ['MEMORY_STORE_NAME'], 'description': 'Memories for each new joiner in the HR daily brief', 'definition': {'kind': 'default', 'chat_model': os.environ['CHAT_MODEL'], 'embedding_model': os.environ['EMBEDDING_MODEL'], 'options': {'user_profile_enabled': True, 'chat_summary_enabled': True, 'user_profile_details': 'food preferences, personal interests, and resumes'}}}))")
+          FEATURE_HEADER="Foundry-Features: MemoryStores=V1Preview"
           get_status=$(curl -sS -o /tmp/memory-get.json -w "%{http_code}" \
             -X GET "${endpoint}/memory_stores/${MEMORY_STORE_NAME}?api-version=v1" \
             -H "api-key: ${FOUNDRY_API_KEY}" \
+            -H "${FEATURE_HEADER}" \
             -H "Accept: application/json")
           echo "get status=${get_status}"
           if [ "${get_status}" = "200" ]; then
-            del_status=$(curl -sS -o /tmp/memory-delete.json -w "%{http_code}" \
-              -X DELETE "${endpoint}/memory_stores/${MEMORY_STORE_NAME}?api-version=v1" \
-              -H "api-key: ${FOUNDRY_API_KEY}" \
-              -H "Accept: application/json")
-            echo "delete status=${del_status}"
-            if [ "${del_status}" -lt 200 ] || [ "${del_status}" -ge 300 ]; then
-              python3 -c "import pathlib; print(pathlib.Path('/tmp/memory-delete.json').read_text()[:2000])"
-              exit 1
-            fi
+            echo "memory store already exists; leaving it in place"
+            python3 -c "import pathlib; print(pathlib.Path('/tmp/memory-get.json').read_text()[:2000])"
+            exit 0
           fi
           status=$(curl -sS -o /tmp/memory-create.json -w "%{http_code}" \
             -X POST "${endpoint}/memory_stores?api-version=v1" \
             -H "api-key: ${FOUNDRY_API_KEY}" \
+            -H "${FEATURE_HEADER}" \
             -H "Content-Type: application/json" \
             -H "Accept: application/json" \
             --data "${body}")
