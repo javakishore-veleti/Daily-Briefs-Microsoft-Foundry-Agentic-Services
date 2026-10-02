@@ -3,6 +3,10 @@ name: AzureFoundry-006-Memory-RBAC-Assign
 on:
   workflow_dispatch:
     inputs:
+      project_name:
+        description: Foundry project name under the account (default project often matches the account name)
+        required: true
+        default: azure-foundry-mastery-east-us-2
       still_run:
         description: RBAC May Already Exist In Azure, Do You Still Run This Github Action?
         required: true
@@ -29,15 +33,16 @@ jobs:
       AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
       FOUNDRY_ACCOUNT_RESOURCE_ID: ${{ secrets.FOUNDRY_ACCOUNT_RESOURCE_ID }}
       FOUNDRY_PROJECT_PRINCIPAL_ID: ${{ secrets.FOUNDRY_PROJECT_PRINCIPAL_ID }}
+      PROJECT_NAME: ${{ inputs.project_name }}
     steps:
       - name: Check secrets
         shell: bash
         run: |
           set -euo pipefail
-          if [ -z "${AZURE_CREDENTIALS}" ] || [ -z "${FOUNDRY_ACCOUNT_RESOURCE_ID}" ] || [ -z "${FOUNDRY_PROJECT_PRINCIPAL_ID}" ]; then
-            echo "Add AZURE_CREDENTIALS, FOUNDRY_ACCOUNT_RESOURCE_ID, and FOUNDRY_PROJECT_PRINCIPAL_ID as repository secrets."
+          if [ -z "${AZURE_CREDENTIALS}" ] || [ -z "${FOUNDRY_ACCOUNT_RESOURCE_ID}" ]; then
+            echo "Add AZURE_CREDENTIALS and FOUNDRY_ACCOUNT_RESOURCE_ID as repository secrets."
             echo "FOUNDRY_ACCOUNT_RESOURCE_ID is the ARM id of the Foundry / AI Services account."
-            echo "FOUNDRY_PROJECT_PRINCIPAL_ID is the object id of the project managed identity."
+            echo "Optional: FOUNDRY_PROJECT_PRINCIPAL_ID is also assigned when set."
             exit 1
           fi
 
@@ -47,28 +52,82 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
           allow-no-subscriptions: true
 
-      - name: Assign Foundry User and Cognitive Services OpenAI User
+      - name: Discover identities and assign Foundry User + Cognitive Services OpenAI User
         shell: bash
         run: |
           set -euo pipefail
           scope="${FOUNDRY_ACCOUNT_RESOURCE_ID}"
-          assignee="${FOUNDRY_PROJECT_PRINCIPAL_ID}"
           subscription_id=$(python3 -c "import os; print(os.environ['FOUNDRY_ACCOUNT_RESOURCE_ID'].split('/')[2])")
           az account set --subscription "${subscription_id}"
-          for role in "Foundry User" "Cognitive Services OpenAI User"; do
-            echo "Assigning role=${role}"
+
+          # parts: .../resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{name}
+          rg=$(python3 -c "import os; p=os.environ['FOUNDRY_ACCOUNT_RESOURCE_ID'].split('/'); print(p[p.index('resourceGroups')+1])")
+          account=$(python3 -c "import os; p=os.environ['FOUNDRY_ACCOUNT_RESOURCE_ID'].split('/'); print(p[p.index('accounts')+1])")
+          project_name="${PROJECT_NAME:-$account}"
+
+          echo "scope=${scope}"
+          echo "rg=${rg} account=${account} project=${project_name}"
+
+          principals=()
+
+          account_principal=$(az cognitiveservices account show -g "${rg}" -n "${account}" --query identity.principalId -o tsv 2>/dev/null || true)
+          if [ -n "${account_principal}" ] && [ "${account_principal}" != "None" ]; then
+            echo "account_MI=${account_principal}"
+            principals+=("${account_principal}")
+          fi
+
+          project_json=$(az rest --method get --url "https://management.azure.com${scope}/projects/${project_name}?api-version=2025-06-01" 2>/dev/null || true)
+          if [ -n "${project_json}" ]; then
+            project_principal=$(printf '%s' "${project_json}" | python3 -c "import json,sys; d=json.load(sys.stdin); print((d.get('identity') or {}).get('principalId') or '')")
+            agent_identity=$(printf '%s' "${project_json}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(((d.get('properties') or {}).get('agentIdentity') or {}).get('agentIdentityId') or '')")
+            if [ -n "${project_principal}" ]; then
+              echo "project_MI=${project_principal}"
+              principals+=("${project_principal}")
+            fi
+            if [ -n "${agent_identity}" ]; then
+              echo "agent_identity=${agent_identity}"
+              principals+=("${agent_identity}")
+            fi
+          else
+            echo "project lookup failed for ${project_name}; continuing with other principals"
+          fi
+
+          if [ -n "${FOUNDRY_PROJECT_PRINCIPAL_ID:-}" ]; then
+            echo "secret_project_principal=${FOUNDRY_PROJECT_PRINCIPAL_ID}"
+            principals+=("${FOUNDRY_PROJECT_PRINCIPAL_ID}")
+          fi
+
+          # unique principals
+          mapfile -t principals < <(printf '%s\n' "${principals[@]}" | awk 'NF && !seen[$0]++')
+          if [ "${#principals[@]}" -eq 0 ]; then
+            echo "No managed-identity principals discovered. Set FOUNDRY_PROJECT_PRINCIPAL_ID or check the account/project names."
+            exit 1
+          fi
+
+          assign_role() {
+            local assignee="$1"
+            local role="$2"
             if az role assignment create \
               --assignee-object-id "${assignee}" \
               --assignee-principal-type ServicePrincipal \
               --role "${role}" \
               --scope "${scope}"; then
-              echo "assigned role=${role}"
+              echo "assigned role=${role} principal=${assignee}"
             else
-              echo "role=${role} may already exist; verifying"
+              echo "role=${role} principal=${assignee} may already exist"
               az role assignment list \
                 --assignee "${assignee}" \
                 --scope "${scope}" \
                 --query "[?roleDefinitionName=='${role}'].{role:roleDefinitionName, id:id}" \
-                -o table
+                -o table || true
             fi
+          }
+
+          for principal in "${principals[@]}"; do
+            for role in "Foundry User" "Cognitive Services OpenAI User"; do
+              assign_role "${principal}" "${role}"
+            done
           done
+
+          echo "=== role assignments on account ==="
+          az role assignment list --scope "${scope}" --query "[].{role:roleDefinitionName, principal:principalId}" -o table

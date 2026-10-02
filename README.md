@@ -274,7 +274,19 @@ Middleware startup also ensures agents and the memory store when the app starts,
 | `AzureFoundry-003-Agent-HRAssistant-Create.yml` | `hr-assistant-agent` | `still_run` default `no` |
 | `AzureFoundry-004-Agent-Weather-Create.yml` | `weather-agent` + OpenAPI weather tool | `still_run` default `no` |
 | `AzureFoundry-005-MemoryStore-HRJoiner-Create.yml` | Memory store `hr-joiner-memory` | `still_run` default `no` |
-| `AzureFoundry-006-Memory-RBAC-Assign.yml` | Assigns Foundry User + Cognitive Services OpenAI User to the **project** managed identity on the Foundry account | `still_run` default `no` |
+| `AzureFoundry-006-Memory-RBAC-Assign.yml` | Discovers account / project / agent identities on the Foundry account and assigns **Foundry User** + **Cognitive Services OpenAI User** to each | `still_run` default `no` |
+
+**How Azure setup is meant to work for every developer**
+
+| Step | Who / where | What |
+| --- | --- | --- |
+| 1 | Repo secrets (once per team) | `FOUNDRY_PROJECT_ENDPOINT`, `FOUNDRY_API_KEY`, `AZURE_CREDENTIALS`, `FOUNDRY_ACCOUNT_RESOURCE_ID` (optional `FOUNDRY_PROJECT_PRINCIPAL_ID`) |
+| 2 | Actions 001 / 003 / 004 | Create web-search, HR, and weather agents (`still_run=yes`) |
+| 3 | Action 005 | Ensure memory store `hr-joiner-memory` (`still_run=yes`) |
+| 4 | Action **006** | Assign memory RBAC on the Foundry account identities (`still_run=yes`) |
+| 5 | Local `.env` | Same endpoint, API key, model, and embedding names as the team Foundry project |
+
+Do **not** rely on one-off laptop `az role assignment` for day-to-day setup. That was only used while debugging the memory **401**. The supported path for other developers is **workflow 006**.
 
 **Repository secrets**
 
@@ -282,11 +294,11 @@ Middleware startup also ensures agents and the memory store when the app starts,
 | --- | --- |
 | `FOUNDRY_PROJECT_ENDPOINT` | Agent + memory workflows (001–005) |
 | `FOUNDRY_API_KEY` | Agent + memory workflows (001–005) |
-| `AZURE_CREDENTIALS` | 006 only — Azure service principal JSON for `azure/login` |
+| `AZURE_CREDENTIALS` | 006 — Azure service principal JSON for `azure/login` (needs permission to assign roles on the Foundry account; Reader on the subscription helps login) |
 | `FOUNDRY_ACCOUNT_RESOURCE_ID` | 006 — ARM id of the Foundry / AI Services account |
-| `FOUNDRY_PROJECT_PRINCIPAL_ID` | 006 — Object (principal) id of the **project** managed identity |
+| `FOUNDRY_PROJECT_PRINCIPAL_ID` | 006 optional — extra principal object id to include if discovery misses one |
 
-What Actions **do not** replace: deploying models in Foundry, creating the Foundry project itself, or fixing a bad API key. Memory still needs the RBAC in 006 (or the same roles in the Azure portal) before preference search works.
+What Actions **do not** replace: deploying chat/embedding models in Foundry, creating the Foundry project/account itself, or fixing a bad API key. After 006, wait a few minutes for RBAC to propagate before HR memory update/search works.
 
 ---
 
