@@ -45,6 +45,7 @@ jobs:
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
+          allow-no-subscriptions: true
 
       - name: Assign Foundry User and Cognitive Services OpenAI User
         shell: bash
@@ -52,6 +53,8 @@ jobs:
           set -euo pipefail
           scope="${FOUNDRY_ACCOUNT_RESOURCE_ID}"
           assignee="${FOUNDRY_PROJECT_PRINCIPAL_ID}"
+          subscription_id=$(python3 -c "import os; print(os.environ['FOUNDRY_ACCOUNT_RESOURCE_ID'].split('/')[2])")
+          az account set --subscription "${subscription_id}"
           for role in "Foundry User" "Cognitive Services OpenAI User"; do
             echo "Assigning role=${role}"
             if az role assignment create \
