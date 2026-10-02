@@ -1,7 +1,5 @@
 from typing import ClassVar
 
-from datetime import date
-
 from middleware.adapters.daos.mongodb.impl.generic_entity_mgr import (
     ChatHistoryMgr,
     ChatSessionMgr,
@@ -46,7 +44,6 @@ class ObjectsFactory:
         self.get_joiner_info_mgr()
         self.get_joiner_preferences_mgr()
         self._ensure_sessions_for_history()
-        self.get_joiner_info_mgr().ensure_samples(date.today().isoformat())
 
     def get_chat_history_mgr(self) -> ChatHistoryMgr:
         return self._ensure_mgr("chat_history_mgr", ChatHistoryMgr)

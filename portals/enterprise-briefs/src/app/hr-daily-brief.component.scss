@@ -10,6 +10,146 @@
 
 .date-row {
   padding: 0 28px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 18px;
+  align-items: end;
+}
+
+.date-hint {
+  margin: 0;
+  color: #8a4b22;
+  font-size: 0.9rem;
+  align-self: center;
+}
+
+.date-hints {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.date-hints .date-hint {
+  align-self: stretch;
+}
+
+.date-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #8a4b22;
+  max-width: 240px;
+}
+
+.date-row input {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fffdf8;
+  color: var(--ink);
+  padding: 10px 12px;
+}
+
+.dataset-accordion {
+  margin: 0 28px 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fffdf8;
+  overflow: hidden;
+}
+
+.dataset-accordion summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 14px 16px;
+  font-weight: 600;
+  color: var(--ink-deep);
+  background: #fff4e4;
+}
+
+.dataset-accordion summary::-webkit-details-marker {
+  display: none;
+}
+
+.dataset-accordion summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 8px;
+  color: #8a4b22;
+}
+
+.dataset-accordion[open] summary::before {
+  content: '▾';
+}
+
+.dataset-body {
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dataset-path,
+.dataset-flags,
+.dataset-message {
+  margin: 0;
+  color: #6a320c;
+  font-size: 0.92rem;
+}
+
+.dataset-path code {
+  font-size: 0.88rem;
+}
+
+.dataset-joinees {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dataset-joinees li {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1.4fr 0.7fr 0.7fr;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  font-size: 0.9rem;
+}
+
+.populate-btn {
+  align-self: flex-start;
+  border: 1px solid #c46a1a;
+  background: #c46a1a;
+  color: #fff;
+  border-radius: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.dataset-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.populate-btn-memory {
+  background: #0e6b8a;
+  border-color: #0e6b8a;
+}
+
+.populate-btn-clear {
+  background: #8a2f2f;
+  border-color: #8a2f2f;
+}
+
+.populate-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .date-row label {
@@ -37,10 +177,17 @@
   gap: 8px;
 }
 
+.joiner-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
 .joiner-row {
   width: 100%;
   display: grid;
-  grid-template-columns: 1.4fr 1fr 1.4fr;
+  grid-template-columns: 1.2fr 1fr 1.2fr 1.4fr;
   gap: 12px;
   text-align: left;
   border: 1px solid var(--line);
@@ -56,10 +203,55 @@
   color: var(--ink-deep);
 }
 
+.joiner-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.86rem;
+  color: #0e6b8a;
+  word-break: break-all;
+}
+
+.joiner-id-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.copy-id-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  border: 1px solid var(--line);
+  background: #fffdf8;
+  color: #0e6b8a;
+  border-radius: 12px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.copy-id-btn:hover {
+  background: #eef8fc;
+}
+
+.copy-done {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1f7a3f;
+}
+
 .pager {
   display: flex;
   gap: 10px;
   padding: 16px 28px 0;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.pager-label {
+  margin: 0;
+  color: #8a4b22;
+  font-size: 0.92rem;
+  min-width: 220px;
 }
 
 .pager .more-chats {
@@ -159,7 +351,8 @@
 @media (max-width: 860px) {
   .joiner-row,
   .record-grid,
-  .record-card div {
+  .record-card div,
+  .dataset-joinees li {
     grid-template-columns: 1fr;
   }
 }

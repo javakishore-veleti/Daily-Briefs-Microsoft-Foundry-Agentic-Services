@@ -508,20 +508,40 @@ class JoinerInfoMgr(GenericEntityMgr[JoinerInfo]):
         self.description = "A mgr that can store and retrieve joiner info"
 
     def page_for_date(self, joining_date: str, limit: int = 10, skip: int = 0) -> tuple[list[JoinerInfo], bool]:
+        return self.page_for_date_range(joining_date, joining_date, limit, skip)
+
+    def page_for_date_range(
+        self,
+        joining_date_from: str,
+        joining_date_to: str,
+        limit: int = 10,
+        skip: int = 0,
+    ) -> tuple[list[JoinerInfo], bool]:
         self._require_init()
         if limit < 1 or limit > self.latest_limit:
             raise ValueError(f"limit must be from 1 to {self.latest_limit}")
         if skip < 0:
             raise ValueError("skip must be 0 or greater")
+        start = joining_date_from.strip()
+        end = joining_date_to.strip()
+        if not start or not end:
+            raise ValueError("joining_date_from and joining_date_to are required")
+        if start > end:
+            start, end = end, start
         collection = self._collection()
         self._ensure_index(
             collection,
             "joining_date_last_name",
             [("joining_date", ASCENDING), ("last_name", ASCENDING), ("first_name", ASCENDING)],
         )
+        query: dict[str, object]
+        if start == end:
+            query = {"joining_date": start}
+        else:
+            query = {"joining_date": {"$gte": start, "$lte": end}}
         cursor = (
-            collection.find({"joining_date": joining_date})
-            .sort([("last_name", ASCENDING), ("first_name", ASCENDING)])
+            collection.find(query)
+            .sort([("joining_date", ASCENDING), ("last_name", ASCENDING), ("first_name", ASCENDING)])
             .skip(skip)
             .limit(limit + 1)
         )
@@ -529,41 +549,47 @@ class JoinerInfoMgr(GenericEntityMgr[JoinerInfo]):
         has_more = len(rows) > limit
         return rows[:limit], has_more
 
-    def ensure_samples(self, today: str) -> None:
-        if self._collection().count_documents({}) > 0:
-            return
-        from datetime import date, timedelta
+    def count_for_date_range(self, joining_date_from: str, joining_date_to: str) -> int:
+        self._require_init()
+        start = joining_date_from.strip()
+        end = joining_date_to.strip()
+        if not start or not end:
+            return 0
+        if start > end:
+            start, end = end, start
+        collection = self._collection()
+        self._ensure_index(
+            collection,
+            "joining_date_last_name",
+            [("joining_date", ASCENDING), ("last_name", ASCENDING), ("first_name", ASCENDING)],
+        )
+        if start == end:
+            query: dict[str, object] = {"joining_date": start}
+        else:
+            query = {"joining_date": {"$gte": start, "$lte": end}}
+        return int(collection.count_documents(query))
 
-        day = date.fromisoformat(today)
-        samples = [
-            ("Asha", "R", "Reddy", "asha.reddy@example.com", "555-0101", "12 River Road, Vijayawada", ["e-101"], ["Mina Rao"], "Software Engineer", "IC3", "Software Engineer", 92000, today),
-            ("Luis", "", "Martinez", "luis.martinez@example.com", "555-0102", "40 Oak Street, Charlotte", ["e-102", "e-108"], ["Jon Hale", "Priya Shah"], "Program Manager", "M1", "Program Manager", 110000, today),
-            ("Mei", "Lin", "Chen", "mei.chen@example.com", "555-0103", "8 Harbor Lane, Seattle", ["e-104"], ["Noah Kim"], "Data Analyst", "IC2", "Data Analyst", 86000, (day + timedelta(days=1)).isoformat()),
-        ]
-        preferences = JoinerPreferencesMgr()
-        preferences.init()
-        for first, middle, last, email, phone, address, ids, names, official, internal, joining, salary, joining_date in samples:
-            joiner = JoinerInfo()
-            joiner.first_name = first
-            joiner.middle_name = middle
-            joiner.last_name = last
-            joiner.email = email
-            joiner.contact_phone = phone
-            joiner.contact_address = address
-            joiner.interviewed_by_employee_ids = ids
-            joiner.interviewed_by_employee_names = names
-            joiner.official_role_name = official
-            joiner.internal_role_name = internal
-            joiner.joining_official_role_name = joining
-            joiner.salary_accepted_usd = salary
-            joiner.joining_date = joining_date
-            self.store(joiner)
-            preference = JoinerPreferences()
-            preference.joiner_info_id = joiner.id
-            preference.resumes = f"{first} {last} resume: previous role before joining as {joining}."
-            preference.personal_interests = "Reading, hiking, and team sports."
-            preference.food_preferences = "No peanuts."
-            preferences.store(preference)
+    def find_by_email(self, email: str) -> JoinerInfo | None:
+        self._require_init()
+        normalized = email.strip().lower()
+        if not normalized:
+            return None
+        collection = self._collection()
+        self._ensure_index(collection, "email", [("email", ASCENDING)])
+        document = collection.find_one({"email": normalized})
+        if document is None:
+            return None
+        return self._entity(document)
+
+    def count_by_email_prefix(self, local_prefix: str, domain: str) -> int:
+        self._require_init()
+        prefix = local_prefix.strip().lower()
+        host = domain.strip().lower()
+        if not prefix or not host:
+            return 0
+        collection = self._collection()
+        self._ensure_index(collection, "email", [("email", ASCENDING)])
+        return int(collection.count_documents({"email": {"$regex": f"^{prefix}.*@{host}$"}}))
 
 
 class JoinerPreferencesMgr(GenericEntityMgr[JoinerPreferences]):

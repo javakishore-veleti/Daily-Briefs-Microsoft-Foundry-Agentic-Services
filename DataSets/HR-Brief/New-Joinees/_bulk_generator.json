@@ -1,0 +1,735 @@
+{
+  "count": 1000,
+  "span_days": 30,
+  "email_prefix": "joinee.bulk",
+  "email_domain": "example.com",
+  "first_names": [
+    "Aisha",
+    "Amir",
+    "Ana",
+    "Andreas",
+    "Ava",
+    "Bruno",
+    "Camille",
+    "Carlos",
+    "Chen",
+    "Chloe",
+    "Diego",
+    "Dmitri",
+    "Elena",
+    "Fatima",
+    "Felix",
+    "Grace",
+    "Hiro",
+    "Ines",
+    "Ivan",
+    "Jade",
+    "Jamal",
+    "Kenji",
+    "Lara",
+    "Leila",
+    "Luis",
+    "Maya",
+    "Mei",
+    "Nia",
+    "Noah",
+    "Omar",
+    "Priya",
+    "Ravi",
+    "Sofia",
+    "Tariq",
+    "Uma",
+    "Viktor",
+    "Wei",
+    "Yara",
+    "Yuki",
+    "Zara",
+    "Amina",
+    "Bjorn",
+    "Chiara",
+    "Dev",
+    "Esra",
+    "Farah",
+    "Gustavo",
+    "Hana",
+    "Ibrahim",
+    "Julia"
+  ],
+  "last_names": [
+    "Ahmed",
+    "Almeida",
+    "Andersen",
+    "Berg",
+    "Chen",
+    "Costa",
+    "Dubois",
+    "Garcia",
+    "Hassan",
+    "Ivanov",
+    "Kim",
+    "Kowalski",
+    "Lopez",
+    "Martinez",
+    "Nakamura",
+    "Nguyen",
+    "Okafor",
+    "Patel",
+    "Rossi",
+    "Silva",
+    "Singh",
+    "Smith",
+    "Tanaka",
+    "Vargas",
+    "Williams",
+    "Yamamoto",
+    "Zhang",
+    "Muller",
+    "Novak",
+    "Santos",
+    "Okonkwo",
+    "Johansson",
+    "Fernandez",
+    "Kapoor",
+    "Moreau",
+    "Petrov",
+    "Schmidt",
+    "Torres",
+    "Wang",
+    "Park"
+  ],
+  "cities": [
+    [
+      "Tokyo",
+      "Japan"
+    ],
+    [
+      "Osaka",
+      "Japan"
+    ],
+    [
+      "Singapore",
+      "Singapore"
+    ],
+    [
+      "Sydney",
+      "Australia"
+    ],
+    [
+      "Melbourne",
+      "Australia"
+    ],
+    [
+      "Mumbai",
+      "India"
+    ],
+    [
+      "Bengaluru",
+      "India"
+    ],
+    [
+      "Hyderabad",
+      "India"
+    ],
+    [
+      "Dubai",
+      "UAE"
+    ],
+    [
+      "Riyadh",
+      "Saudi Arabia"
+    ],
+    [
+      "Nairobi",
+      "Kenya"
+    ],
+    [
+      "Lagos",
+      "Nigeria"
+    ],
+    [
+      "Cairo",
+      "Egypt"
+    ],
+    [
+      "Johannesburg",
+      "South Africa"
+    ],
+    [
+      "Casablanca",
+      "Morocco"
+    ],
+    [
+      "London",
+      "UK"
+    ],
+    [
+      "Manchester",
+      "UK"
+    ],
+    [
+      "Berlin",
+      "Germany"
+    ],
+    [
+      "Munich",
+      "Germany"
+    ],
+    [
+      "Paris",
+      "France"
+    ],
+    [
+      "Lyon",
+      "France"
+    ],
+    [
+      "Madrid",
+      "Spain"
+    ],
+    [
+      "Barcelona",
+      "Spain"
+    ],
+    [
+      "Stockholm",
+      "Sweden"
+    ],
+    [
+      "Warsaw",
+      "Poland"
+    ],
+    [
+      "Amsterdam",
+      "Netherlands"
+    ],
+    [
+      "Dublin",
+      "Ireland"
+    ],
+    [
+      "Zurich",
+      "Switzerland"
+    ],
+    [
+      "Sao Paulo",
+      "Brazil"
+    ],
+    [
+      "Rio de Janeiro",
+      "Brazil"
+    ],
+    [
+      "Mexico City",
+      "Mexico"
+    ],
+    [
+      "Bogota",
+      "Colombia"
+    ],
+    [
+      "Toronto",
+      "Canada"
+    ],
+    [
+      "Vancouver",
+      "Canada"
+    ],
+    [
+      "New York",
+      "USA"
+    ],
+    [
+      "Seattle",
+      "USA"
+    ],
+    [
+      "Austin",
+      "USA"
+    ],
+    [
+      "Charlotte",
+      "USA"
+    ],
+    [
+      "Chicago",
+      "USA"
+    ],
+    [
+      "San Francisco",
+      "USA"
+    ],
+    [
+      "Santiago",
+      "Chile"
+    ],
+    [
+      "Buenos Aires",
+      "Argentina"
+    ],
+    [
+      "Seoul",
+      "South Korea"
+    ],
+    [
+      "Shanghai",
+      "China"
+    ],
+    [
+      "Beijing",
+      "China"
+    ],
+    [
+      "Jakarta",
+      "Indonesia"
+    ],
+    [
+      "Bangkok",
+      "Thailand"
+    ],
+    [
+      "Manila",
+      "Philippines"
+    ],
+    [
+      "Auckland",
+      "New Zealand"
+    ],
+    [
+      "Tel Aviv",
+      "Israel"
+    ],
+    [
+      "Istanbul",
+      "Turkey"
+    ],
+    [
+      "Helsinki",
+      "Finland"
+    ]
+  ],
+  "street_patterns": [
+    "{n} Market Street",
+    "{n} Oak Avenue",
+    "{n} Harbor Lane",
+    "{n} River Road",
+    "{n} Tech Park Drive",
+    "{n} Innovation Way",
+    "{n} Lake View Blvd",
+    "{n} Cedar Court"
+  ],
+  "roles": [
+    {
+      "official_role_name": "Intern",
+      "internal_role_name": "INT",
+      "joining_official_role_name": "Intern",
+      "salary_min": 45000,
+      "salary_max": 65000,
+      "experience_band": "intern",
+      "weight": 8
+    },
+    {
+      "official_role_name": "Fresher Software Engineer",
+      "internal_role_name": "IC1",
+      "joining_official_role_name": "Software Engineer",
+      "salary_min": 70000,
+      "salary_max": 90000,
+      "experience_band": "fresher",
+      "weight": 10
+    },
+    {
+      "official_role_name": "Software Engineer",
+      "internal_role_name": "IC3",
+      "joining_official_role_name": "Software Engineer",
+      "salary_min": 95000,
+      "salary_max": 135000,
+      "experience_band": "mid",
+      "weight": 16
+    },
+    {
+      "official_role_name": "Senior Software Engineer",
+      "internal_role_name": "IC4",
+      "joining_official_role_name": "Senior Software Engineer",
+      "salary_min": 140000,
+      "salary_max": 185000,
+      "experience_band": "senior",
+      "weight": 12
+    },
+    {
+      "official_role_name": "QA Engineer",
+      "internal_role_name": "IC2",
+      "joining_official_role_name": "QA Engineer",
+      "salary_min": 80000,
+      "salary_max": 115000,
+      "experience_band": "mid",
+      "weight": 10
+    },
+    {
+      "official_role_name": "Senior QA Engineer",
+      "internal_role_name": "IC3",
+      "joining_official_role_name": "Senior QA Engineer",
+      "salary_min": 110000,
+      "salary_max": 145000,
+      "experience_band": "senior",
+      "weight": 6
+    },
+    {
+      "official_role_name": "Database Engineer",
+      "internal_role_name": "IC3",
+      "joining_official_role_name": "Database Engineer",
+      "salary_min": 105000,
+      "salary_max": 150000,
+      "experience_band": "mid",
+      "weight": 8
+    },
+    {
+      "official_role_name": "Senior Database Engineer",
+      "internal_role_name": "IC4",
+      "joining_official_role_name": "Senior Database Engineer",
+      "salary_min": 145000,
+      "salary_max": 190000,
+      "experience_band": "senior",
+      "weight": 5
+    },
+    {
+      "official_role_name": "Project Manager",
+      "internal_role_name": "PM",
+      "joining_official_role_name": "Project Manager",
+      "salary_min": 95000,
+      "salary_max": 135000,
+      "experience_band": "mid",
+      "weight": 8
+    },
+    {
+      "official_role_name": "Senior Project Manager",
+      "internal_role_name": "SPM",
+      "joining_official_role_name": "Senior Project Manager",
+      "salary_min": 130000,
+      "salary_max": 170000,
+      "experience_band": "senior",
+      "weight": 5
+    },
+    {
+      "official_role_name": "Program Manager",
+      "internal_role_name": "M1",
+      "joining_official_role_name": "Program Manager",
+      "salary_min": 110000,
+      "salary_max": 155000,
+      "experience_band": "mid",
+      "weight": 8
+    },
+    {
+      "official_role_name": "Senior Program Manager",
+      "internal_role_name": "M2",
+      "joining_official_role_name": "Senior Program Manager",
+      "salary_min": 150000,
+      "salary_max": 195000,
+      "experience_band": "senior",
+      "weight": 5
+    },
+    {
+      "official_role_name": "Security Engineer",
+      "internal_role_name": "IC3",
+      "joining_official_role_name": "Security Engineer",
+      "salary_min": 115000,
+      "salary_max": 160000,
+      "experience_band": "mid",
+      "weight": 8
+    },
+    {
+      "official_role_name": "Senior Security Engineer",
+      "internal_role_name": "IC4",
+      "joining_official_role_name": "Senior Security Engineer",
+      "salary_min": 155000,
+      "salary_max": 200000,
+      "experience_band": "senior",
+      "weight": 5
+    },
+    {
+      "official_role_name": "Senior Director",
+      "internal_role_name": "D2",
+      "joining_official_role_name": "Senior Director",
+      "salary_min": 220000,
+      "salary_max": 280000,
+      "experience_band": "director",
+      "weight": 5
+    },
+    {
+      "official_role_name": "SVP Technology",
+      "internal_role_name": "SVP-TECH",
+      "joining_official_role_name": "SVP Technology",
+      "salary_min": 300000,
+      "salary_max": 380000,
+      "experience_band": "svp",
+      "weight": 3
+    },
+    {
+      "official_role_name": "SVP Platform",
+      "internal_role_name": "SVP-PLT",
+      "joining_official_role_name": "SVP Platform",
+      "salary_min": 300000,
+      "salary_max": 375000,
+      "experience_band": "svp",
+      "weight": 3
+    },
+    {
+      "official_role_name": "SVP Business Development",
+      "internal_role_name": "SVP-BD",
+      "joining_official_role_name": "SVP Business Development",
+      "salary_min": 290000,
+      "salary_max": 360000,
+      "experience_band": "svp",
+      "weight": 3
+    },
+    {
+      "official_role_name": "SVP Sales",
+      "internal_role_name": "SVP-SALES",
+      "joining_official_role_name": "SVP Sales",
+      "salary_min": 295000,
+      "salary_max": 370000,
+      "experience_band": "svp",
+      "weight": 3
+    },
+    {
+      "official_role_name": "CTO",
+      "internal_role_name": "C-LEVEL",
+      "joining_official_role_name": "CTO",
+      "salary_min": 350000,
+      "salary_max": 450000,
+      "experience_band": "c_level",
+      "weight": 2
+    },
+    {
+      "official_role_name": "CTI",
+      "internal_role_name": "C-LEVEL",
+      "joining_official_role_name": "Chief Technology Innovation Officer",
+      "salary_min": 340000,
+      "salary_max": 430000,
+      "experience_band": "c_level",
+      "weight": 2
+    }
+  ],
+  "past_experience_by_band": {
+    "intern": [
+      "University project on {domain}; campus internship at {company}.",
+      "Completed coursework and a {months}-month internship building {domain} prototypes.",
+      "Fresh from academia with hackathon wins in {domain}."
+    ],
+    "fresher": [
+      "Recent graduate; internship at {company} working on {domain}.",
+      "Bootcamp plus {months}-month internship as junior contributor on {domain}.",
+      "Entry-level hire with campus projects and open-source PRs in {domain}."
+    ],
+    "mid": [
+      "{years} years at {company} delivering {domain} services.",
+      "Prior role as {prior_role} focusing on {domain} and production support.",
+      "Built and operated {domain} systems across two product releases at {company}."
+    ],
+    "senior": [
+      "{years}+ years leading {domain} delivery; mentored engineers at {company}.",
+      "Senior contributor on large-scale {domain}; owned design reviews and on-call.",
+      "Previously {prior_role}; drove reliability and platform improvements in {domain}."
+    ],
+    "director": [
+      "Directed multi-team {domain} org (~{team_size} people) at {company}.",
+      "Senior Director for {domain}; owned roadmap, hiring, and vendor strategy.",
+      "Led cross-region {domain} programs with P&L influence at {company}."
+    ],
+    "svp": [
+      "SVP-level ownership of {domain} strategy across regions at {company}.",
+      "Grew {domain} portfolio and partner ecosystem; reported to CEO/board forums.",
+      "Executive sponsor for {domain} transformation with {team_size}+ org scale."
+    ],
+    "c_level": [
+      "C-level technology leadership for {domain}; set multi-year architecture vision.",
+      "Former CTO/CTI at {company}; scaled engineering and innovation practices.",
+      "Executive owner of technology risk, platform investment, and {domain} bets."
+    ]
+  },
+  "prior_roles": [
+    "Software Engineer",
+    "QA Engineer",
+    "Database Engineer",
+    "Platform Engineer",
+    "Engineering Manager",
+    "Product Manager",
+    "Solutions Architect",
+    "Data Engineer",
+    "Project Manager",
+    "Program Manager",
+    "Security Engineer"
+  ],
+  "domains": [
+    "cloud platforms",
+    "payments",
+    "identity",
+    "data pipelines",
+    "mobile apps",
+    "observability",
+    "developer tooling",
+    "e-commerce",
+    "healthcare systems",
+    "fintech APIs"
+  ],
+  "companies": [
+    "Northwind Labs",
+    "Contoso Systems",
+    "Fabrikam Cloud",
+    "Adventure Works",
+    "Wide World Importers",
+    "Tailspin Robotics",
+    "Litware Analytics",
+    "Proseware Mobile",
+    "Alpine Ski House Digital",
+    "Blue Yonder Health"
+  ],
+  "interviewers": [
+    [
+      "e-201",
+      "Mina Rao"
+    ],
+    [
+      "e-202",
+      "Jon Hale"
+    ],
+    [
+      "e-203",
+      "Priya Shah"
+    ],
+    [
+      "e-204",
+      "Noah Kim"
+    ],
+    [
+      "e-205",
+      "Ava Brooks"
+    ],
+    [
+      "e-206",
+      "Kenji Sato"
+    ],
+    [
+      "e-207",
+      "Sara Lind"
+    ],
+    [
+      "e-208",
+      "Omar Farouk"
+    ],
+    [
+      "e-209",
+      "Elena Petrova"
+    ],
+    [
+      "e-210",
+      "Marcus Cole"
+    ]
+  ],
+  "interests": [
+    "Reading, hiking, and team sports.",
+    "Cooking, travel, and photography.",
+    "Chess, running, and open source.",
+    "Music, cycling, and volunteering.",
+    "Languages, museums, and tennis.",
+    "Board games, podcasts, and baking.",
+    "Yoga, sci-fi novels, and gardening.",
+    "Football, pottery, and community mentoring.",
+    "Climbing, jazz, and home automation.",
+    "Swimming, documentary film, and writing.",
+    "Scholarly research, peer review, and academic mentoring.",
+    "Marathon training, team athletics, and sports coaching.",
+    "Book writing, literary workshops, and author meetups.",
+    "Painting, sculpture, and gallery openings.",
+    "Poetry readings, essay writing, and independent publishing.",
+    "Certification study groups and professional societies.",
+    "Doctoral seminars, libraries, and open-access journals.",
+    "Culinary arts, spice markets, and regional street food."
+  ],
+  "food_preferences": [
+    "No peanuts.",
+    "Vegetarian.",
+    "Vegan.",
+    "Halal meals preferred.",
+    "Kosher meals preferred.",
+    "No shellfish.",
+    "Gluten-free.",
+    "Lactose intolerant \u2014 dairy-free options.",
+    "No pork.",
+    "Pescatarian.",
+    "Low spice preferred.",
+    "No restrictions.",
+    "South Indian vegetarian thali preferred.",
+    "Mediterranean diet \u2014 olive oil, fish, fresh vegetables.",
+    "East Asian cuisine preferred; mild spice.",
+    "West African dishes preferred.",
+    "Latin American flavors; no cilantro.",
+    "Nut allergy \u2014 avoid tree nuts and peanuts.",
+    "Diabetic-friendly / low sugar meals.",
+    "High-protein athlete meal plan.",
+    "Jain vegetarian (no root vegetables).",
+    "Flexible omnivore; loves street food variety."
+  ],
+  "certifications": [
+    "AWS Solutions Architect",
+    "Azure Administrator",
+    "Google Professional Cloud Architect",
+    "CISSP",
+    "CISM",
+    "CompTIA Security+",
+    "PMP",
+    "Scrum Master (PSM)",
+    "CKA",
+    "Terraform Associate",
+    "ISTQB",
+    "Oracle Database Certified Professional",
+    "TOGAF"
+  ],
+  "degrees": [
+    "B.Sc. Computer Science",
+    "B.Tech Information Technology",
+    "M.Sc. Data Science",
+    "M.S. Software Engineering",
+    "MBA",
+    "Ph.D. Computer Science",
+    "B.Eng. Electrical Engineering",
+    "M.A. Economics",
+    "J.D.",
+    "M.Fine Arts"
+  ],
+  "personas": [
+    {
+      "key": "scholar",
+      "label": "Scholar",
+      "blurb": "Published research papers and conference talks; active in academic communities."
+    },
+    {
+      "key": "athlete",
+      "label": "Athlete",
+      "blurb": "Competitive athlete with regional/national tournament experience."
+    },
+    {
+      "key": "author",
+      "label": "Author",
+      "blurb": "Published book/author of technical essays and industry articles."
+    },
+    {
+      "key": "writer",
+      "label": "Book writer",
+      "blurb": "Writes fiction and non-fiction; maintains a long-form writing practice."
+    },
+    {
+      "key": "artist",
+      "label": "Artist",
+      "blurb": "Practicing visual/performing artist with exhibitions or commissions."
+    },
+    {
+      "key": "certified",
+      "label": "Certified professional",
+      "blurb": "Holds industry certifications and keeps them current."
+    },
+    {
+      "key": "advanced_degree",
+      "label": "Advanced degree holder",
+      "blurb": "Highest academic degree completed with thesis/capstone work."
+    }
+  ]
+}

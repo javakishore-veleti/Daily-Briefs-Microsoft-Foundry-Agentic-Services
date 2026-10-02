@@ -1,0 +1,20 @@
+{
+  "first_name": "Mei",
+  "middle_name": "Lin",
+  "last_name": "Chen",
+  "email": "mei.chen@example.com",
+  "contact_phone": "555-0103",
+  "contact_address": "8 Harbor Lane, Seattle",
+  "interviewed_by_employee_ids": ["e-104"],
+  "interviewed_by_employee_names": ["Noah Kim"],
+  "official_role_name": "Data Analyst",
+  "internal_role_name": "IC2",
+  "joining_official_role_name": "Data Analyst",
+  "salary_accepted_usd": 86000,
+  "joining_date_offset_days": 1,
+  "preferences": {
+    "resumes": "Mei Chen resume: previous role before joining as Data Analyst.",
+    "personal_interests": "Reading, hiking, and team sports.",
+    "food_preferences": "No peanuts."
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "first_name": "Luis",
+  "middle_name": "",
+  "last_name": "Martinez",
+  "email": "luis.martinez@example.com",
+  "contact_phone": "555-0102",
+  "contact_address": "40 Oak Street, Charlotte",
+  "interviewed_by_employee_ids": ["e-102", "e-108"],
+  "interviewed_by_employee_names": ["Jon Hale", "Priya Shah"],
+  "official_role_name": "Program Manager",
+  "internal_role_name": "M1",
+  "joining_official_role_name": "Program Manager",
+  "salary_accepted_usd": 110000,
+  "joining_date_offset_days": 0,
+  "preferences": {
+    "resumes": "Luis Martinez resume: previous role before joining as Program Manager.",
+    "personal_interests": "Reading, hiking, and team sports.",
+    "food_preferences": "No peanuts."
+  }
+}

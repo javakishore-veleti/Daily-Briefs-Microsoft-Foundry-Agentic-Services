@@ -37,35 +37,31 @@ Default local URLs: portal `http://127.0.0.1:4200`, middleware `http://127.0.0.1
 - **Foundry agent:** `hr-assistant-agent` (no tools on the agent definition)
 - **AI capability:** **Foundry Memory Store** `hr-joiner-memory` with chat model + embedding model. Per-joiner isolation uses `scope = joiner_info_id`.
 - **Portal flow:** List joiners by joining date (10 per page) → open one joiner → see **Joiner info** and **Joiner preferences** → chat (history keyed by `joiner_info_id`)
-- **APIs:** `GET /api/v1/daily-briefs/joiners`, `GET /api/v1/daily-briefs/joiners/{id}`, `POST /api/v1/daily-briefs/hr-assistant`
+- **APIs:** `GET /api/v1/daily-briefs/joiners`, `GET /api/v1/daily-briefs/joiners/{id}`, `POST /api/v1/daily-briefs/hr-assistant`, `GET /api/v1/daily-briefs/hr-sample-dataset`, `POST …/populate-bulk`, `POST …/clear-foundry-memory`
 
 The left-hand joiner card is **MongoDB**. Preference answers from the agent come from **Foundry Memory**, not from reading that card on every reply. If memory search/update fails (for example Azure OpenAI **401** on the embedding deployment), the agent correctly says it has no memory yet.
+
+Populate Mongo / Foundry Memory from the HR Daily Brief accordion. **Clear Azure Foundry Memory** deletes and recreates store `hr-joiner-memory` (Mongo joiner rows are unchanged).
 
 #### How one HR chat turn works
 
 Every **Send** on a joiner chat runs this order in `HrAssistantAdapter` (opening the details page does not write memory):
 
-1. **Write preferences into memory** — load `joiner-preferences` from Mongo for this `joiner_info_id`, then call Foundry `begin_update_memories` with `scope = joiner_info_id` and text like food / interests / resumes (`update_delay=0`, wait until the poller finishes).
-2. **Search memory for the question** — call `search_memories` on store `hr-joiner-memory` with the same `scope`, `items = [{ role: user, content: the question }]`, and `max_memories = 5`. Foundry embeds the question (`TEXT_EMBEDDING_MODEL_NAME`) and returns the closest memory items for that joiner only.
-3. **Build one user `input` string and call the agent** — middleware concatenates three plain-text blocks with blank lines between them, then calls `responses.create` with `agent_reference.name = hr-assistant-agent`. The portal still shows only the typed question as the user bubble.
+1. **Search memory for the question** — call `search_memories` on store `hr-joiner-memory` with `scope = joiner_info_id`, `items = [{ role: user, content: the question }]`, and `max_memories` from `HR_MEMORY_MAX_MEMORIES` (default `5`). Foundry embeds the question (`TEXT_EMBEDDING_MODEL_NAME`) and returns the closest memory items for that joiner only.
+2. **Cold-miss preference seed (only when search returns nothing)** — load `joiner-preferences` from Mongo and call Foundry `begin_update_memories` once (`update_delay=0`, wait). Then search again. When memory already has hits, preferences are **not** re-written (avoids repeated extraction cost).
+3. **Build one user `input` string and call the agent** — middleware concatenates joiner identity + optional memory context + the question, then calls `responses.create` with `agent_reference.name = hr-assistant-agent`. When memory hits exist, the joiner header is slim (id/name/email/roles/date only). The portal still shows only the typed question as the user bubble.
 4. **Show the reply** — return `output_text` unchanged.
-5. **Write the turn into memory** — another `begin_update_memories` with `Question: …` / `Answer: …` for later recalls.
+5. **Optional turn memory** — off by default (`HR_MEMORY_STORE_TURNS=false`). When enabled, a compact `Question: …` / `Answer: …` update may run asynchronously after a useful reply.
 
-**What goes in the agent `input` (example for Luis Martinez):**
+**What goes in the agent `input` (example for Luis Martinez, after memory has hits):**
 
 ```text
 Joiner record:
 Joiner info id: de230b44-d57d-480a-866f-00cd5c831b43
 Name: Luis Martinez
 Email: luis.martinez@example.com
-Phone: 555-0102
-Address: 40 Oak Street, Charlotte
-Interviewed by ids: e-102, e-108
-Interviewed by names: Jon Hale, Priya Shah
 Official role: Program Manager
-Internal role: M1
 Joining official role: Program Manager
-Salary accepted USD: 110000.0
 Joining date: 2026-10-01
 
 Memory context:
@@ -76,9 +72,9 @@ Question: What are the preferences of new joinee
 
 Notes:
 
-- **Joiner record** comes from Mongo `joiner-info` only (not preferences).
-- **Memory context** is included only when `search_memories` returns content. If search fails or returns nothing, that block is omitted and the agent (instructed to answer preferences only from Memory context) says it has no memory yet.
-- Preferences are **not** copied from the UI card into the agent input on every turn; they reach the agent through Foundry Memory after a successful update + search.
+- **Joiner record** comes from Mongo `joiner-info` only (not preferences). Full contact/salary fields are included only on a cold miss (no memory hits yet).
+- **Memory context** is included only when `search_memories` returns content. If search fails or returns nothing after the cold-miss seed, that block is omitted and the agent (instructed to answer preferences only from Memory context) says it has no memory yet.
+- Preferences are **not** copied from the UI card into the agent input on every turn; they reach the agent through Foundry Memory after a successful update + search (cold miss, or the accordion **Populate Azure Foundry Memory** action).
 
 ---
 
@@ -199,11 +195,13 @@ New-hire master record. Listed by `joining_date` in the HR portal.
 | `internal_role_name` | Internal level/role |
 | `joining_official_role_name` | Role at join |
 | `salary_accepted_usd` | Accepted salary |
-| `joining_date` | ISO date string (`YYYY-MM-DD`) used for calendar / list |
+| `joining_date` | ISO date string (`YYYY-MM-DD`) used for calendar / list range filter |
+
+HR list filters by **joining date from → to** (default: today through +30 days).
 
 ### `joiner-preferences` (`JoinerPreferences`)
 
-Preference profile shown on the joiner card and written into Foundry Memory on each HR Send.
+Preference profile shown on the joiner card. Written into Foundry Memory on **cold miss** (first chat with no memories) or via the explicit **Populate Azure Foundry Memory** action — not on every chat Send.
 
 | Field | Meaning |
 | --- | --- |
@@ -213,7 +211,7 @@ Preference profile shown on the joiner card and written into Foundry Memory on e
 | `personal_interests` | Interests |
 | `food_preferences` | Food notes / allergies |
 
-Empty `joiner-info` is seeded with sample joiners (and matching preferences) on DAO init so the HR list is usable.
+Empty `joiner-info` is **not** auto-seeded on startup. Use **Populate 1,000 joiners** (Mongo) and optionally **Populate Azure Foundry Memory** from the HR Daily Brief accordion. Generator config: `DataSets/HR-Brief/New-Joinees/_bulk_generator.json`. Population marker: `_population_state.json` (gitignored).
 
 ---
 
@@ -313,6 +311,8 @@ What Actions **do not** replace: deploying chat/embedding models in Foundry, cre
 | `REASONING_EFFORT` | Used for gpt-5* agent definitions when published |
 | `HR_MEMORY_STORE_NAME` | Default `hr-joiner-memory` |
 | `HR_MEMORY_PROFILE_DETAILS` | Default food preferences, personal interests, resumes |
+| `HR_MEMORY_MAX_MEMORIES` | Search hit limit per turn (default `5`) |
+| `HR_MEMORY_STORE_TURNS` | Persist Q&A turns to memory (`false` by default) |
 | `DB_TECHNOLOGY` | `mongodb` (local default) |
 | `MONGODB_URI` / `MONGODB_DATABASE` | Local Docker defaults |
 

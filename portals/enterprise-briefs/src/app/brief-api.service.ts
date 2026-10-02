@@ -1,7 +1,7 @@
 import { HttpClient, HttpEvent } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { ChatHistoryListResponse, JoinerInfo, JoinerListResponse, WebSearchResponse } from './chat.models';
+import { ChatHistoryListResponse, JoinerInfo, JoinerListResponse, HrFoundryMemoryClearResponse, HrSampleDatasetBulkPopulateResponse, HrSampleDatasetStatusResponse, WebSearchResponse } from './chat.models';
 
 @Injectable({ providedIn: 'root' })
 export class BriefApi {
@@ -38,10 +38,17 @@ export class BriefApi {
     });
   }
 
-  joiners(joiningDate: string, limit: number, skip: number, userId: string): Observable<JoinerListResponse> {
+  joiners(
+    joiningDateFrom: string,
+    joiningDateTo: string,
+    limit: number,
+    skip: number,
+    userId: string,
+  ): Observable<JoinerListResponse> {
     return this.http.get<JoinerListResponse>(`${this.origin}/api/v1/daily-briefs/joiners`, {
       params: {
-        joining_date: joiningDate,
+        joining_date_from: joiningDateFrom,
+        joining_date_to: joiningDateTo,
         limit,
         skip,
         user_id: userId,
@@ -53,6 +60,35 @@ export class BriefApi {
     return this.http.get<JoinerInfo>(`${this.origin}/api/v1/daily-briefs/joiners/${joinerInfoId}`, {
       params: { user_id: userId },
     });
+  }
+
+  hrSampleDatasetStatus(userId: string): Observable<HrSampleDatasetStatusResponse> {
+    return this.http.get<HrSampleDatasetStatusResponse>(`${this.origin}/api/v1/daily-briefs/hr-sample-dataset`, {
+      params: { user_id: userId },
+    });
+  }
+
+  populateHrJoiners(userId: string, seedMemory = false): Observable<HrSampleDatasetBulkPopulateResponse> {
+    return this.http.post<HrSampleDatasetBulkPopulateResponse>(
+      `${this.origin}/api/v1/daily-briefs/hr-sample-dataset/populate-bulk`,
+      {},
+      {
+        params: {
+          user_id: userId,
+          seed_memory: seedMemory ? 'true' : 'false',
+        },
+      },
+    );
+  }
+
+  clearFoundryMemory(userId: string): Observable<HrFoundryMemoryClearResponse> {
+    return this.http.post<HrFoundryMemoryClearResponse>(
+      `${this.origin}/api/v1/daily-briefs/hr-sample-dataset/clear-foundry-memory`,
+      {},
+      {
+        params: { user_id: userId },
+      },
+    );
   }
 
   askHr(query: string, sessionId: string, userId: string, joinerInfoId: string): Observable<HttpEvent<WebSearchResponse>> {

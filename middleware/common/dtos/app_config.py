@@ -34,6 +34,8 @@ class AppConfig(BaseModel):
                 "HR_MEMORY_PROFILE_DETAILS",
                 "food preferences, personal interests, and resumes",
             ),
+            "hr_memory_max_memories": os.getenv("HR_MEMORY_MAX_MEMORIES", "5"),
+            "hr_memory_store_turns": os.getenv("HR_MEMORY_STORE_TURNS", "false"),
             "reasoning_effort": os.getenv("REASONING_EFFORT", "minimal"),
             "api_host": os.getenv("API_HOST", "0.0.0.0"),
             "api_port": os.getenv("API_PORT", "8000"),
@@ -66,6 +68,20 @@ class AppConfig(BaseModel):
         if not isinstance(details, str) or not details.strip():
             return "food preferences, personal interests, and resumes"
         return details.strip()
+
+    def get_hr_memory_max_memories(self) -> int:
+        raw = self.config.get("hr_memory_max_memories", "5")
+        try:
+            value = int(raw) if not isinstance(raw, int) else raw
+        except (TypeError, ValueError):
+            return 5
+        return max(1, min(value, 20))
+
+    def get_hr_memory_store_turns(self) -> bool:
+        raw = self.config.get("hr_memory_store_turns", "false")
+        if isinstance(raw, bool):
+            return raw
+        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
     def get_reasoning_effort(self) -> str:
         effort = self.config.get("reasoning_effort", "minimal")

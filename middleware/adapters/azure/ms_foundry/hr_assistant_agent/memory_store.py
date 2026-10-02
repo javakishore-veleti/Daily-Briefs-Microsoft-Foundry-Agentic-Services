@@ -55,16 +55,32 @@ class HrMemoryStore:
         except HttpResponseError:
             get_logger(__name__).exception("memory_store=%s create failed", self.name)
 
+    def clear_all(self, project_client: AIProjectClient) -> None:
+        """Delete and recreate the HR memory store so all scopes/items are wiped."""
+        config = AppConfig.get_instance()
+        self.name = config.get_hr_memory_store_name()
+        stores = project_client.beta.memory_stores
+        try:
+            stores.delete(self.name)
+            get_logger(__name__).info("memory_store=%s deleted for full clear", self.name)
+        except ResourceNotFoundError:
+            get_logger(__name__).info("memory_store=%s already absent during clear", self.name)
+        except HttpResponseError:
+            get_logger(__name__).exception("memory_store=%s delete failed during clear", self.name)
+            raise
+        self.ensure(project_client)
+
     def search(self, project_client: AIProjectClient, joiner_info_id: str, query: str) -> list[str]:
         self.name = AppConfig.get_instance().get_hr_memory_store_name()
         if not joiner_info_id.strip() or not query.strip():
             return []
+        max_memories = AppConfig.get_instance().get_hr_memory_max_memories()
         try:
             result = project_client.beta.memory_stores.search_memories(
                 name=self.name,
                 scope=joiner_info_id,
                 items=[{"role": "user", "type": "message", "content": query}],
-                options=MemorySearchOptions(max_memories=5),
+                options=MemorySearchOptions(max_memories=max_memories),
             )
         except HttpResponseError:
             get_logger(__name__).exception("memory_store=%s search failed", self.name)
@@ -89,7 +105,13 @@ class HrMemoryStore:
         )
         return lines
 
-    def remember(self, project_client: AIProjectClient, joiner_info_id: str, text: str) -> None:
+    def remember(
+        self,
+        project_client: AIProjectClient,
+        joiner_info_id: str,
+        text: str,
+        wait: bool = True,
+    ) -> None:
         self.name = AppConfig.get_instance().get_hr_memory_store_name()
         if not joiner_info_id.strip() or not text.strip():
             return
@@ -100,7 +122,8 @@ class HrMemoryStore:
                 items=[{"role": "user", "type": "message", "content": text}],
                 update_delay=0,
             )
-            poller.result()
+            if wait:
+                poller.result()
         except HttpResponseError:
             get_logger(__name__).exception("memory_store=%s update failed", self.name)
 

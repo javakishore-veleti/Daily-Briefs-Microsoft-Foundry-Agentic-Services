@@ -1,0 +1,20 @@
+{
+  "first_name": "Asha",
+  "middle_name": "R",
+  "last_name": "Reddy",
+  "email": "asha.reddy@example.com",
+  "contact_phone": "555-0101",
+  "contact_address": "12 River Road, Vijayawada",
+  "interviewed_by_employee_ids": ["e-101"],
+  "interviewed_by_employee_names": ["Mina Rao"],
+  "official_role_name": "Software Engineer",
+  "internal_role_name": "IC3",
+  "joining_official_role_name": "Software Engineer",
+  "salary_accepted_usd": 92000,
+  "joining_date_offset_days": 0,
+  "preferences": {
+    "resumes": "Asha Reddy resume: previous role before joining as Software Engineer.",
+    "personal_interests": "Reading, hiking, and team sports.",
+    "food_preferences": "No peanuts."
+  }
+}

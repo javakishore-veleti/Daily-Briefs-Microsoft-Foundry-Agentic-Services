@@ -221,3 +221,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local HR sample-dataset population marker (per machine)
+DataSets/HR-Brief/New-Joinees/_population_state.json

@@ -1,9 +1,14 @@
 from typing import override
 
+from middleware.adapters.daos.hr_sample_dataset import HrSampleDatasetService
 from middleware.adapters.daos.objects_factory import ObjectsFactory as DaoObjectsFactory
 from middleware.common.app_exec_contants import AppExecConstants
 from middleware.common.dtos.hr_assistant_dtos import (
     HrAssistantCtx,
+    HrFoundryMemoryClearResponse,
+    HrSampleDatasetBulkPopulateResponse,
+    HrSampleDatasetPopulateResponse,
+    HrSampleDatasetStatusResponse,
     JoinerInfoResponse,
     JoinerListResponse,
 )
@@ -19,6 +24,7 @@ class HrAssistantFacadeImpl(HrAssistantFacade):
         super().__init__()
         self.tasks: list[HrAssistantTask] = []
         self.initialized = False
+        self.sample_dataset = HrSampleDatasetService()
 
     @override
     def initialize(self) -> None:
@@ -37,17 +43,33 @@ class HrAssistantFacadeImpl(HrAssistantFacade):
         return AppExecConstants.SUCCESS
 
     @override
-    def list_joiners(self, joining_date: str, limit: int, skip: int) -> JoinerListResponse:
-        rows, has_more = DaoObjectsFactory.get_instance().get_joiner_info_mgr().page_for_date(
-            joining_date,
+    def list_joiners(
+        self,
+        joining_date_from: str,
+        joining_date_to: str,
+        limit: int,
+        skip: int,
+    ) -> JoinerListResponse:
+        start = joining_date_from.strip()
+        end = joining_date_to.strip()
+        info_mgr = DaoObjectsFactory.get_instance().get_joiner_info_mgr()
+        rows, has_more = info_mgr.page_for_date_range(
+            start,
+            end,
             limit,
             skip,
         )
+        total = info_mgr.count_for_date_range(start, end)
         preferences = DaoObjectsFactory.get_instance().get_joiner_preferences_mgr()
         return JoinerListResponse(
-            joining_date=joining_date,
+            joining_date=start,
+            joining_date_from=start,
+            joining_date_to=end,
             joiners=[_joiner_response(row, preferences.for_joiner(row.id)) for row in rows],
             has_more=has_more,
+            total=total,
+            limit=limit,
+            skip=skip,
         )
 
     @override
@@ -57,6 +79,22 @@ class HrAssistantFacadeImpl(HrAssistantFacade):
         if joiner is None:
             return None
         return _joiner_response(joiner, dao.get_joiner_preferences_mgr().for_joiner(joiner.id))
+
+    @override
+    def sample_dataset_status(self) -> HrSampleDatasetStatusResponse:
+        return self.sample_dataset.status()
+
+    @override
+    def populate_sample_dataset(self) -> HrSampleDatasetPopulateResponse:
+        return self.sample_dataset.populate(seed_memory=True)
+
+    @override
+    def populate_bulk_sample_dataset(self, seed_memory: bool = False) -> HrSampleDatasetBulkPopulateResponse:
+        return self.sample_dataset.populate_bulk(seed_memory=seed_memory)
+
+    @override
+    def clear_foundry_memory(self) -> HrFoundryMemoryClearResponse:
+        return self.sample_dataset.clear_foundry_memory()
 
 
 def _joiner_response(joiner: JoinerInfo, preferences: JoinerPreferences | None) -> JoinerInfoResponse:

@@ -9,6 +9,10 @@ from middleware.common.dtos.hr_assistant_dtos import (
     HrAssistantCtx,
     HrAssistantReq,
     HrAssistantResp,
+    HrFoundryMemoryClearResponse,
+    HrSampleDatasetBulkPopulateResponse,
+    HrSampleDatasetPopulateResponse,
+    HrSampleDatasetStatusResponse,
     JoinerInfoResponse,
     JoinerListResponse,
 )
@@ -18,11 +22,28 @@ from middleware.facades.objects_factory import ObjectsFactory
 
 @log_methods
 class HrAssistantApi:
-    def list_joiners(self, user_id: str, joining_date: str = "", limit: int = 10, skip: int = 0) -> JoinerListResponse:
+    def list_joiners(
+        self,
+        user_id: str,
+        joining_date: str = "",
+        joining_date_from: str = "",
+        joining_date_to: str = "",
+        limit: int = 10,
+        skip: int = 0,
+    ) -> JoinerListResponse:
         self._require_user(user_id)
-        day = joining_date.strip() or date.today().isoformat()
+        today = date.today()
+        start = joining_date_from.strip() or joining_date.strip() or today.isoformat()
+        end = joining_date_to.strip() or start
+        if start > end:
+            start, end = end, start
         page_limit = 10 if limit < 1 else min(limit, 10)
-        return ObjectsFactory.get_instance().get_hr_assistant_facade().list_joiners(day, page_limit, skip)
+        return ObjectsFactory.get_instance().get_hr_assistant_facade().list_joiners(
+            start,
+            end,
+            page_limit,
+            skip,
+        )
 
     def get_joiner(self, joiner_info_id: str, user_id: str) -> JoinerInfoResponse:
         self._require_user(user_id)
@@ -30,6 +51,30 @@ class HrAssistantApi:
         if joiner is None:
             raise HTTPException(status_code=404, detail="Joiner was not found.")
         return joiner
+
+    def sample_dataset_status(self, user_id: str) -> HrSampleDatasetStatusResponse:
+        self._require_user(user_id)
+        return ObjectsFactory.get_instance().get_hr_assistant_facade().sample_dataset_status()
+
+    def populate_sample_dataset(self, user_id: str) -> HrSampleDatasetPopulateResponse:
+        self._require_user(user_id)
+        return ObjectsFactory.get_instance().get_hr_assistant_facade().populate_sample_dataset()
+
+    def populate_bulk_sample_dataset(
+        self,
+        user_id: str,
+        seed_memory: bool = False,
+    ) -> HrSampleDatasetBulkPopulateResponse:
+        self._require_user(user_id)
+        return (
+            ObjectsFactory.get_instance()
+            .get_hr_assistant_facade()
+            .populate_bulk_sample_dataset(seed_memory=seed_memory)
+        )
+
+    def clear_foundry_memory(self, user_id: str) -> HrFoundryMemoryClearResponse:
+        self._require_user(user_id)
+        return ObjectsFactory.get_instance().get_hr_assistant_facade().clear_foundry_memory()
 
     def ask(self, req: HrAssistantReq) -> HrAssistantApiResponse:
         logger = get_logger(__name__)
@@ -54,6 +99,12 @@ class HrAssistantApi:
             total_tokens=ctx.resp.usage.total_tokens,
             cached_tokens=ctx.resp.usage.cached_tokens,
             reasoning_tokens=ctx.resp.usage.reasoning_tokens,
+            total_ms=_int_result(ctx, "total_ms"),
+            memory_search_ms=_int_result(ctx, "memory_search_ms"),
+            memory_update_ms=_int_result(ctx, "memory_update_ms"),
+            agent_ms=_int_result(ctx, "agent_ms"),
+            slowest_step=ctx.resp.results.get("slowest_step", ""),
+            slowest_ms=_int_result(ctx, "slowest_ms"),
         )
 
     def _require_user(self, user_id: str) -> None:
@@ -75,3 +126,11 @@ class HrAssistantApi:
             )
         except Exception:
             get_logger(__name__).exception("session_id=%s chat history was not stored", req.session_id)
+
+
+def _int_result(ctx: HrAssistantCtx, key: str) -> int:
+    raw = ctx.resp.results.get(key, "0")
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return 0

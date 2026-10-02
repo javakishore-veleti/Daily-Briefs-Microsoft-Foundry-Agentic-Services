@@ -11,6 +11,7 @@ import {
   ChatHistorySessionResponse,
   ChatMessage,
   ChatThread,
+  HrSampleDatasetStatusResponse,
   JoinerInfo,
   PromptGroup,
 } from './chat.models';
@@ -35,10 +36,13 @@ export class HrDailyBriefComponent implements OnInit, OnDestroy {
   private readonly sanitizer = inject(DomSanitizer);
 
   readonly menu = briefById(briefId);
-  readonly joiningDate = signal(localDate());
+  readonly joiningDateFrom = signal(localDate());
+  readonly joiningDateTo = signal(localDatePlusDays(30));
   readonly joiners = signal<JoinerInfo[]>([]);
   readonly joinerSkip = signal(0);
   readonly joinersHaveMore = signal(false);
+  readonly joinersTotal = signal(0);
+  readonly joinersLimit = signal(pageSize);
   readonly listError = signal('');
   readonly selected = signal<JoinerInfo | undefined>(undefined);
   readonly detailError = signal('');
@@ -49,10 +53,17 @@ export class HrDailyBriefComponent implements OnInit, OnDestroy {
   readonly waitStatus = signal('');
   readonly waitSeconds = signal(0);
   readonly hasMore = signal(false);
+  readonly datasetBusy = signal(false);
+  readonly populateBusy = signal<'' | 'mongo' | 'memory' | 'clear'>('');
+  readonly datasetError = signal('');
+  readonly datasetMessage = signal('');
+  readonly datasetStatus = signal<HrSampleDatasetStatusResponse | undefined>(undefined);
+  readonly copiedJoinerId = signal('');
 
   private historySkip = 0;
   private joinerId = '';
   private waitTimer = 0;
+  private copyTimer = 0;
 
   constructor() {
     effect(() => {
@@ -77,16 +88,100 @@ export class HrDailyBriefComponent implements OnInit, OnDestroy {
         this.loadHistory(false);
         return;
       }
+      this.loadDatasetStatus();
       this.loadJoiners(0);
     });
   }
 
-  onDate(event: Event): void {
+  populateDataset(): void {
+    this.runPopulate(false, 'mongo', 'Populating 1,000 joiners into MongoDB…');
+  }
+
+  populateMemory(): void {
+    this.runPopulate(true, 'memory', 'Seeding Azure Foundry Memory for joiners…');
+  }
+
+  clearFoundryMemory(): void {
+    const userId = this.users.current()?.id ?? '';
+    if (!userId || this.datasetBusy()) {
+      return;
+    }
+    const confirmed = window.confirm(
+      'Clear all Azure Foundry memories for the HR store?\n\n' +
+        'This deletes and recreates the memory store. Mongo joiner data is not changed.',
+    );
+    if (!confirmed) {
+      return;
+    }
+    this.datasetBusy.set(true);
+    this.populateBusy.set('clear');
+    this.datasetError.set('');
+    this.datasetMessage.set('Clearing Azure Foundry Memory…');
+    this.api.clearFoundryMemory(userId).subscribe({
+      next: (response) => {
+        this.datasetStatus.set(response.status);
+        this.datasetMessage.set(response.message);
+        this.datasetBusy.set(false);
+        this.populateBusy.set('');
+      },
+      error: (error: HttpErrorResponse) => {
+        this.datasetBusy.set(false);
+        this.populateBusy.set('');
+        this.datasetError.set(errorMessage(error));
+      },
+    });
+  }
+
+  private runPopulate(
+    seedMemory: boolean,
+    busyKind: 'mongo' | 'memory',
+    waitingMessage: string,
+  ): void {
+    const userId = this.users.current()?.id ?? '';
+    if (!userId || this.datasetBusy()) {
+      return;
+    }
+    this.datasetBusy.set(true);
+    this.populateBusy.set(busyKind);
+    this.datasetError.set('');
+    this.datasetMessage.set(waitingMessage);
+    this.api.populateHrJoiners(userId, seedMemory).subscribe({
+      next: (response) => {
+        this.datasetStatus.set(response.status);
+        this.datasetMessage.set(response.message);
+        this.datasetBusy.set(false);
+        this.populateBusy.set('');
+        this.loadJoiners(0);
+      },
+      error: (error: HttpErrorResponse) => {
+        this.datasetBusy.set(false);
+        this.populateBusy.set('');
+        this.datasetError.set(errorMessage(error));
+      },
+    });
+  }
+
+  onDateFrom(event: Event): void {
     const value = (event.target as HTMLInputElement).value;
     if (!value) {
       return;
     }
-    this.joiningDate.set(value);
+    this.joiningDateFrom.set(value);
+    if (value > this.joiningDateTo()) {
+      this.joiningDateTo.set(value);
+    }
+    this.loadJoiners(0);
+  }
+
+  onDateTo(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    if (!value) {
+      return;
+    }
+    this.joiningDateTo.set(value);
+    if (value < this.joiningDateFrom()) {
+      this.joiningDateFrom.set(value);
+    }
     this.loadJoiners(0);
   }
 
@@ -101,8 +196,45 @@ export class HrDailyBriefComponent implements OnInit, OnDestroy {
     this.loadJoiners(this.joinerSkip() + pageSize);
   }
 
+  joinerPageLabel(): string {
+    const total = this.joinersTotal();
+    if (total <= 0) {
+      return 'No joiners';
+    }
+    const limit = this.joinersLimit() || pageSize;
+    const skip = this.joinerSkip();
+    const from = skip + 1;
+    const to = Math.min(skip + this.joiners().length, total);
+    const page = Math.floor(skip / limit) + 1;
+    const pages = Math.max(1, Math.ceil(total / limit));
+    return `Showing ${from}–${to} of ${total} · Page ${page} of ${pages}`;
+  }
+
   openJoiner(joiner: JoinerInfo): void {
     void this.router.navigate(['/hr-daily-brief', joiner.id]);
+  }
+
+  copyJoinerId(event: Event, joinerId: string): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!joinerId) {
+      return;
+    }
+    void navigator.clipboard.writeText(joinerId).then(
+      () => {
+        this.copiedJoinerId.set(joinerId);
+        if (this.copyTimer) {
+          window.clearTimeout(this.copyTimer);
+        }
+        this.copyTimer = window.setTimeout(() => {
+          if (this.copiedJoinerId() === joinerId) {
+            this.copiedJoinerId.set('');
+          }
+          this.copyTimer = 0;
+        }, 1500);
+      },
+      () => this.listError.set('Could not copy joiner id to the clipboard.'),
+    );
   }
 
   displayName(joiner: JoinerInfo): string {
@@ -226,6 +358,10 @@ export class HrDailyBriefComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopWait();
+    if (this.copyTimer) {
+      window.clearTimeout(this.copyTimer);
+      this.copyTimer = 0;
+    }
   }
 
   private startWait(): void {
@@ -273,16 +409,31 @@ export class HrDailyBriefComponent implements OnInit, OnDestroy {
       return;
     }
     this.listError.set('');
-    this.api.joiners(this.joiningDate(), pageSize, skip, userId).subscribe({
+    this.api.joiners(this.joiningDateFrom(), this.joiningDateTo(), pageSize, skip, userId).subscribe({
       next: (response) => {
         this.joiners.set(response.joiners);
-        this.joinerSkip.set(skip);
+        this.joinerSkip.set(response.skip ?? skip);
         this.joinersHaveMore.set(response.has_more);
+        this.joinersTotal.set(response.total ?? 0);
+        this.joinersLimit.set(response.limit || pageSize);
       },
       error: (error: HttpErrorResponse) => {
         this.joiners.set([]);
+        this.joinersTotal.set(0);
         this.listError.set(errorMessage(error));
       },
+    });
+  }
+
+  private loadDatasetStatus(): void {
+    const userId = this.users.current()?.id ?? '';
+    if (!userId) {
+      return;
+    }
+    this.datasetError.set('');
+    this.api.hrSampleDatasetStatus(userId).subscribe({
+      next: (status) => this.datasetStatus.set(status),
+      error: (error: HttpErrorResponse) => this.datasetError.set(errorMessage(error)),
     });
   }
 
@@ -353,10 +504,19 @@ export class HrDailyBriefComponent implements OnInit, OnDestroy {
 }
 
 function localDate(): string {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${now.getFullYear()}-${month}-${day}`;
+  return formatLocalDate(new Date());
+}
+
+function localDatePlusDays(days: number): string {
+  const value = new Date();
+  value.setDate(value.getDate() + days);
+  return formatLocalDate(value);
+}
+
+function formatLocalDate(value: Date): string {
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${value.getFullYear()}-${month}-${day}`;
 }
 
 function toThread(scopedBriefId: string, session: ChatHistorySessionResponse): ChatThread {
