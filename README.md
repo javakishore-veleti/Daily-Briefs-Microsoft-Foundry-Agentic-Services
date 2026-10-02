@@ -35,15 +35,50 @@ Default local URLs: portal `http://127.0.0.1:4200`, middleware `http://127.0.0.1
 
 - **Job:** Help HR look at **new joiners** and ask preference questions about one joiner.
 - **Foundry agent:** `hr-assistant-agent` (no tools on the agent definition)
-- **AI capability:** **Foundry Memory Store** `hr-joiner-memory` with chat model + embedding model. Per-joiner isolation uses `scope = joiner_info_id`. Middleware:
-  1. Writes joiner preferences from Mongo into memory (`begin_update_memories`)
-  2. Searches memory for the question (`search_memories`)
-  3. Sends joiner record + optional “Memory context” + question to the agent
-  4. Shows the agent reply unchanged
+- **AI capability:** **Foundry Memory Store** `hr-joiner-memory` with chat model + embedding model. Per-joiner isolation uses `scope = joiner_info_id`.
 - **Portal flow:** List joiners by joining date (10 per page) → open one joiner → see **Joiner info** and **Joiner preferences** → chat (history keyed by `joiner_info_id`)
 - **APIs:** `GET /api/v1/daily-briefs/joiners`, `GET /api/v1/daily-briefs/joiners/{id}`, `POST /api/v1/daily-briefs/hr-assistant`
 
 The left-hand joiner card is **MongoDB**. Preference answers from the agent come from **Foundry Memory**, not from reading that card on every reply. If memory search/update fails (for example Azure OpenAI **401** on the embedding deployment), the agent correctly says it has no memory yet.
+
+#### How one HR chat turn works
+
+Every **Send** on a joiner chat runs this order in `HrAssistantAdapter` (opening the details page does not write memory):
+
+1. **Write preferences into memory** — load `joiner-preferences` from Mongo for this `joiner_info_id`, then call Foundry `begin_update_memories` with `scope = joiner_info_id` and text like food / interests / resumes (`update_delay=0`, wait until the poller finishes).
+2. **Search memory for the question** — call `search_memories` on store `hr-joiner-memory` with the same `scope`, `items = [{ role: user, content: the question }]`, and `max_memories = 5`. Foundry embeds the question (`TEXT_EMBEDDING_MODEL_NAME`) and returns the closest memory items for that joiner only.
+3. **Build one user `input` string and call the agent** — middleware concatenates three plain-text blocks with blank lines between them, then calls `responses.create` with `agent_reference.name = hr-assistant-agent`. The portal still shows only the typed question as the user bubble.
+4. **Show the reply** — return `output_text` unchanged.
+5. **Write the turn into memory** — another `begin_update_memories` with `Question: …` / `Answer: …` for later recalls.
+
+**What goes in the agent `input` (example for Luis Martinez):**
+
+```text
+Joiner record:
+Joiner info id: de230b44-d57d-480a-866f-00cd5c831b43
+Name: Luis Martinez
+Email: luis.martinez@example.com
+Phone: 555-0102
+Address: 40 Oak Street, Charlotte
+Interviewed by ids: e-102, e-108
+Interviewed by names: Jon Hale, Priya Shah
+Official role: Program Manager
+Internal role: M1
+Joining official role: Program Manager
+Salary accepted USD: 110000.0
+Joining date: 2026-10-01
+
+Memory context:
+Remember this profile for Luis Martinez. Food preferences: No peanuts. Personal interests: Reading, hiking, and team sports. Resumes: Luis Martinez resume: previous role before joining as Program Manager.
+
+Question: What are the preferences of new joinee
+```
+
+Notes:
+
+- **Joiner record** comes from Mongo `joiner-info` only (not preferences).
+- **Memory context** is included only when `search_memories` returns content. If search fails or returns nothing, that block is omitted and the agent (instructed to answer preferences only from Memory context) says it has no memory yet.
+- Preferences are **not** copied from the UI card into the agent input on every turn; they reach the agent through Foundry Memory after a successful update + search.
 
 ---
 
@@ -99,17 +134,86 @@ Auth to Foundry from this app: project endpoint + `FOUNDRY_API_KEY` (and `Defaul
 
 ---
 
-## MongoDB (local)
+## MongoDB model
 
-| Collection | Purpose |
+Local default: database `daily_briefs` on `mongodb://127.0.0.1:27017` (`DB_TECHNOLOGY=mongodb`). Every entity extends a base with `id`, `created_at`, and `updated_at`. Collection names default to the class name lowercased, except joiners which use hyphenated names. Override with `MONGODB_COLLECTION_<ENTITY>` if needed.
+
+```text
+chatuser 1──* chatsession 1──* chathistory
+joiner-info 1──* joiner-preferences   (via joiner_info_id)
+joiner-info 1──* chathistory          (HR only, via joiner_info_id)
+```
+
+### `chatuser` (`ChatUser`)
+
+Portal accounts.
+
+| Field | Meaning |
 | --- | --- |
-| `chatuser` | Portal accounts (default seed: `enterprise-user` / `password`) |
-| `chatsession` | Chat sessions |
-| `chathistory` | Prompts and agent replies (`joiner_info_id` for HR) |
-| `joiner-info` | New joiner master record + `joining_date` |
-| `joiner-preferences` | Resumes, personal interests, food preferences (FK → joiner-info) |
+| `id` | Primary key |
+| `name`, `email`, `phone` | Profile |
+| `password_hash` | PBKDF2-SHA256 hash |
+| `reset_code_hash`, `reset_code_expires_at` | Forgot-password flow |
 
-Empty `joiner-info` is seeded with sample joiners on DAO init so the HR list is usable.
+Default seed on startup: `enterprise-user` / `password`.
+
+### `chatsession` (`ChatSession`)
+
+One portal chat session (ties history to a signed-in user).
+
+| Field | Meaning |
+| --- | --- |
+| `id` | Primary key |
+| `session_id` | Portal session UUID (also maps to Foundry `conversation_id` in the process cache) |
+| `user_id` | FK → `chatuser.id` |
+
+### `chathistory` (`ChatHistory`)
+
+Stored turns. One **prompt** document and zero or more **response** documents per user message.
+
+| Field | Meaning |
+| --- | --- |
+| `id` | Primary key |
+| `app_module` | Brief module (`web-search`, `weather`, `hr-brief`, …) |
+| `chat_session_id` | FK → `chatsession.id` |
+| `conversation_id` | Foundry conversation id when known |
+| `user_prompt` | Set on prompt documents |
+| `agent_response` | Set on response documents |
+| `user_prompt_id` | On responses: FK → the prompt document `id` |
+| `sequence` | Prompt order, or response order under one prompt |
+| `model_name`, `model_version`, `model_provider` | Optional model metadata |
+| `joiner_info_id` | FK → `joiner-info.id` on **HR** chats only (omitted for other briefs) |
+
+### `joiner-info` (`JoinerInfo`)
+
+New-hire master record. Listed by `joining_date` in the HR portal.
+
+| Field | Meaning |
+| --- | --- |
+| `id` | Primary key (also Foundry memory `scope`) |
+| `first_name`, `middle_name`, `last_name` | Name |
+| `email`, `contact_phone`, `contact_address` | Contact |
+| `interviewed_by_employee_ids` | List of interviewer employee ids |
+| `interviewed_by_employee_names` | List of interviewer names |
+| `official_role_name` | Official role |
+| `internal_role_name` | Internal level/role |
+| `joining_official_role_name` | Role at join |
+| `salary_accepted_usd` | Accepted salary |
+| `joining_date` | ISO date string (`YYYY-MM-DD`) used for calendar / list |
+
+### `joiner-preferences` (`JoinerPreferences`)
+
+Preference profile shown on the joiner card and written into Foundry Memory on each HR Send.
+
+| Field | Meaning |
+| --- | --- |
+| `id` | Primary key |
+| `joiner_info_id` | FK → `joiner-info.id` |
+| `resumes` | Resume / prior-role notes |
+| `personal_interests` | Interests |
+| `food_preferences` | Food notes / allergies |
+
+Empty `joiner-info` is seeded with sample joiners (and matching preferences) on DAO init so the HR list is usable.
 
 ---
 
