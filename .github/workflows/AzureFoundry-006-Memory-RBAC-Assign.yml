@@ -1,0 +1,71 @@
+name: AzureFoundry-006-Memory-RBAC-Assign
+
+on:
+  workflow_dispatch:
+    inputs:
+      still_run:
+        description: RBAC May Already Exist In Azure, Do You Still Run This Github Action?
+        required: true
+        type: choice
+        default: "no"
+        options:
+          - "no"
+          - "yes"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: foundry-memory-rbac
+  cancel-in-progress: false
+
+jobs:
+  assign:
+    name: Assign memory RBAC
+    if: inputs.still_run == 'yes'
+    runs-on: ubuntu-latest
+    env:
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+      FOUNDRY_ACCOUNT_RESOURCE_ID: ${{ secrets.FOUNDRY_ACCOUNT_RESOURCE_ID }}
+      FOUNDRY_PROJECT_PRINCIPAL_ID: ${{ secrets.FOUNDRY_PROJECT_PRINCIPAL_ID }}
+    steps:
+      - name: Check secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${AZURE_CREDENTIALS}" ] || [ -z "${FOUNDRY_ACCOUNT_RESOURCE_ID}" ] || [ -z "${FOUNDRY_PROJECT_PRINCIPAL_ID}" ]; then
+            echo "Add AZURE_CREDENTIALS, FOUNDRY_ACCOUNT_RESOURCE_ID, and FOUNDRY_PROJECT_PRINCIPAL_ID as repository secrets."
+            echo "FOUNDRY_ACCOUNT_RESOURCE_ID is the ARM id of the Foundry / AI Services account."
+            echo "FOUNDRY_PROJECT_PRINCIPAL_ID is the object id of the project managed identity."
+            exit 1
+          fi
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Assign Foundry User and Cognitive Services OpenAI User
+        shell: bash
+        run: |
+          set -euo pipefail
+          scope="${FOUNDRY_ACCOUNT_RESOURCE_ID}"
+          assignee="${FOUNDRY_PROJECT_PRINCIPAL_ID}"
+          for role in "Foundry User" "Cognitive Services OpenAI User"; do
+            echo "Assigning role=${role}"
+            if az role assignment create \
+              --assignee-object-id "${assignee}" \
+              --assignee-principal-type ServicePrincipal \
+              --role "${role}" \
+              --scope "${scope}"; then
+              echo "assigned role=${role}"
+            else
+              echo "role=${role} may already exist; verifying"
+              az role assignment list \
+                --assignee "${assignee}" \
+                --scope "${scope}" \
+                --query "[?roleDefinitionName=='${role}'].{role:roleDefinitionName, id:id}" \
+                -o table
+            fi
+          done

@@ -120,7 +120,11 @@
             </section>
           }
           @if (sending()) {
-            <p class="pending">{{ menu?.pending }}</p>
+            <article class="wait-status" aria-live="polite">
+              <p class="wait-title">Waiting</p>
+              <p>{{ waitStatus() }}</p>
+              <p class="wait-time">{{ waitSeconds() }} seconds so far. The reply appears in this chat when it arrives.</p>
+            </article>
           }
         </div>
         <form class="composer" (submit)="$event.preventDefault(); send()">

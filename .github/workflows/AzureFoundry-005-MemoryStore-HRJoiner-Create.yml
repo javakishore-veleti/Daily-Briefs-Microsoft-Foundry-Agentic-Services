@@ -1,0 +1,107 @@
+name: AzureFoundry-005-MemoryStore-HRJoiner-Create
+
+on:
+  workflow_dispatch:
+    inputs:
+      chat_model:
+        description: Chat model deployment for the HR memory store
+        required: true
+        type: choice
+        default: gpt-4.1
+        options:
+          - gpt-4.1
+          - gpt-4o
+          - gpt-5-mini
+          - gpt-5.4-mini
+      embedding_model:
+        description: Embedding model deployment for the HR memory store
+        required: true
+        type: choice
+        default: text-embedding-3-small
+        options:
+          - text-embedding-3-small
+      memory_store_name:
+        description: Memory store name
+        required: true
+        default: hr-joiner-memory
+      still_run:
+        description: Memory Store Created Already In Code, Do You Still Run This Github Action?
+        required: true
+        type: choice
+        default: "no"
+        options:
+          - "no"
+          - "yes"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: foundry-hr-memory-store
+  cancel-in-progress: false
+
+jobs:
+  create:
+    name: Create hr-joiner-memory
+    if: inputs.still_run == 'yes'
+    runs-on: ubuntu-latest
+    env:
+      FOUNDRY_PROJECT_ENDPOINT: ${{ secrets.FOUNDRY_PROJECT_ENDPOINT }}
+      FOUNDRY_API_KEY: ${{ secrets.FOUNDRY_API_KEY }}
+      CHAT_MODEL: ${{ inputs.chat_model }}
+      EMBEDDING_MODEL: ${{ inputs.embedding_model }}
+      MEMORY_STORE_NAME: ${{ inputs.memory_store_name }}
+    steps:
+      - name: Create memory store
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${FOUNDRY_PROJECT_ENDPOINT}" ] || [ -z "${FOUNDRY_API_KEY}" ]; then
+            echo "Add FOUNDRY_PROJECT_ENDPOINT and FOUNDRY_API_KEY as repository secrets."
+            exit 1
+          fi
+          endpoint="${FOUNDRY_PROJECT_ENDPOINT%/}"
+          body=$(CHAT_MODEL="${CHAT_MODEL}" EMBEDDING_MODEL="${EMBEDDING_MODEL}" MEMORY_STORE_NAME="${MEMORY_STORE_NAME}" python3 -c '
+import json, os
+print(json.dumps({
+  "name": os.environ["MEMORY_STORE_NAME"],
+  "description": "Memories for each new joiner in the HR daily brief",
+  "definition": {
+    "kind": "default",
+    "chat_model": os.environ["CHAT_MODEL"],
+    "embedding_model": os.environ["EMBEDDING_MODEL"],
+    "options": {
+      "user_profile_enabled": True,
+      "chat_summary_enabled": True,
+      "user_profile_details": "food preferences, personal interests, and resumes",
+    },
+  },
+}))
+')
+          get_status=$(curl -sS -o /tmp/memory-get.json -w "%{http_code}" \
+            -X GET "${endpoint}/memory_stores/${MEMORY_STORE_NAME}?api-version=v1" \
+            -H "api-key: ${FOUNDRY_API_KEY}" \
+            -H "Accept: application/json")
+          echo "get status=${get_status}"
+          if [ "${get_status}" = "200" ]; then
+            del_status=$(curl -sS -o /tmp/memory-delete.json -w "%{http_code}" \
+              -X DELETE "${endpoint}/memory_stores/${MEMORY_STORE_NAME}?api-version=v1" \
+              -H "api-key: ${FOUNDRY_API_KEY}" \
+              -H "Accept: application/json")
+            echo "delete status=${del_status}"
+            if [ "${del_status}" -lt 200 ] || [ "${del_status}" -ge 300 ]; then
+              python3 -c 'import pathlib; print(pathlib.Path("/tmp/memory-delete.json").read_text()[:2000])'
+              exit 1
+            fi
+          fi
+          status=$(curl -sS -o /tmp/memory-create.json -w "%{http_code}" \
+            -X POST "${endpoint}/memory_stores?api-version=v1" \
+            -H "api-key: ${FOUNDRY_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            --data "${body}")
+          echo "create status=${status}"
+          python3 -c 'import pathlib; print(pathlib.Path("/tmp/memory-create.json").read_text()[:2000])'
+          if [ "${status}" -lt 200 ] || [ "${status}" -ge 300 ]; then
+            exit 1
+          fi

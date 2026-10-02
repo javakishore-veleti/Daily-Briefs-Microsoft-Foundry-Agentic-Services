@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpEvent } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ChatHistoryListResponse, JoinerInfo, JoinerListResponse, WebSearchResponse } from './chat.models';
@@ -55,12 +55,16 @@ export class BriefApi {
     });
   }
 
-  askHr(query: string, sessionId: string, userId: string, joinerInfoId: string): Observable<WebSearchResponse> {
-    return this.http.post<WebSearchResponse>(`${this.origin}/api/v1/daily-briefs/hr-assistant`, {
-      query,
-      session_id: sessionId,
-      user_id: userId,
-      joiner_info_id: joinerInfoId,
-    });
+  askHr(query: string, sessionId: string, userId: string, joinerInfoId: string): Observable<HttpEvent<WebSearchResponse>> {
+    return this.http.post<WebSearchResponse>(
+      `${this.origin}/api/v1/daily-briefs/hr-assistant`,
+      {
+        query,
+        session_id: sessionId,
+        user_id: userId,
+        joiner_info_id: joinerInfoId,
+      },
+      { observe: 'events', reportProgress: true },
+    );
   }
 }

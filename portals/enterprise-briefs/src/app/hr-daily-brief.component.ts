@@ -1,5 +1,5 @@
-import { HttpErrorResponse } from '@angular/common/http';
-import { Component, ElementRef, OnInit, ViewChild, effect, inject, signal } from '@angular/core';
+import { HttpErrorResponse, HttpEventType, HttpResponse } from '@angular/common/http';
+import { Component, ElementRef, OnDestroy, OnInit, ViewChild, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { briefById } from './briefs';
@@ -24,7 +24,7 @@ const pageSize = 10;
   templateUrl: './hr-daily-brief.component.html',
   styleUrl: './hr-daily-brief.component.scss',
 })
-export class HrDailyBriefComponent implements OnInit {
+export class HrDailyBriefComponent implements OnInit, OnDestroy {
   @ViewChild('transcript') private transcript?: ElementRef<HTMLElement>;
 
   private readonly route = inject(ActivatedRoute);
@@ -46,15 +46,19 @@ export class HrDailyBriefComponent implements OnInit {
   readonly active = signal<ChatThread | undefined>(undefined);
   readonly draft = signal('');
   readonly sending = signal(false);
+  readonly waitStatus = signal('');
+  readonly waitSeconds = signal(0);
   readonly hasMore = signal(false);
 
   private historySkip = 0;
   private joinerId = '';
+  private waitTimer = 0;
 
   constructor() {
     effect(() => {
       this.active();
       this.sending();
+      this.waitStatus();
       queueMicrotask(() => this.scrollToEnd());
     });
   }
@@ -183,12 +187,24 @@ export class HrDailyBriefComponent implements OnInit {
       this.store.append(threadId, message('user', text));
     }
     this.draft.set('');
-    this.sending.set(true);
+    this.startWait();
     this.refresh(threadId);
     const sessionId = this.store.thread(threadId)?.sessionId ?? thread.sessionId;
     const userId = this.users.current()?.id ?? '';
     this.api.askHr(text, sessionId, userId, this.joinerId).subscribe({
-      next: (response) => {
+      next: (event) => {
+        if (event.type === HttpEventType.Sent || event.type === HttpEventType.UploadProgress) {
+          this.waitStatus.set('Server received your question. Waiting for the reply.');
+          return;
+        }
+        if (!(event instanceof HttpResponse)) {
+          return;
+        }
+        const response = event.body;
+        if (!response) {
+          this.finishWait(threadId, text, 'The server returned an empty reply.', true);
+          return;
+        }
         const sequence = nextSequence(this.store.thread(threadId)?.messages ?? [], text);
         this.store.appendResponse(threadId, text, {
           ...message('assistant', response.output_text),
@@ -197,21 +213,49 @@ export class HrDailyBriefComponent implements OnInit {
           outputTokens: response.output_tokens,
           totalTokens: response.total_tokens,
         });
-        this.sending.set(false);
+        this.stopWait();
         this.refresh(threadId);
         this.historySkip = 0;
         this.loadHistory(false);
       },
       error: (error: HttpErrorResponse) => {
-        const sequence = nextSequence(this.store.thread(threadId)?.messages ?? [], text);
-        this.store.appendResponse(threadId, text, {
-          ...message('assistant', errorMessage(error), true),
-          sequence,
-        });
-        this.sending.set(false);
-        this.refresh(threadId);
+        this.finishWait(threadId, text, errorMessage(error), true);
       },
     });
+  }
+
+  ngOnDestroy(): void {
+    this.stopWait();
+  }
+
+  private startWait(): void {
+    this.stopWait();
+    this.sending.set(true);
+    this.waitSeconds.set(0);
+    this.waitStatus.set('Sending your question to the server.');
+    const started = Date.now();
+    this.waitTimer = window.setInterval(() => {
+      this.waitSeconds.set(Math.floor((Date.now() - started) / 1000));
+    }, 1000);
+  }
+
+  private finishWait(threadId: string, text: string, reply: string, failed: boolean): void {
+    const sequence = nextSequence(this.store.thread(threadId)?.messages ?? [], text);
+    this.store.appendResponse(threadId, text, {
+      ...message('assistant', reply, failed),
+      sequence,
+    });
+    this.stopWait();
+    this.refresh(threadId);
+  }
+
+  private stopWait(): void {
+    if (this.waitTimer) {
+      window.clearInterval(this.waitTimer);
+      this.waitTimer = 0;
+    }
+    this.sending.set(false);
+    this.waitStatus.set('');
   }
 
   html(text: string): SafeHtml {

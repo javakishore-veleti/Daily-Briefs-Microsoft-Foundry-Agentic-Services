@@ -27,11 +27,11 @@ class HrMemoryStore:
         profile_details = config.get_hr_memory_profile_details()
         try:
             existing = stores.get(self.name)
-            if _profile_details(existing) == profile_details:
+            if _profile_details(existing) == profile_details and _memory_features_enabled(existing):
                 get_logger(__name__).info("memory_store=%s found", self.name)
                 return
             stores.delete(self.name)
-            get_logger(__name__).info("memory_store=%s replaced so profile details match", self.name)
+            get_logger(__name__).info("memory_store=%s replaced so profile features match", self.name)
         except ResourceNotFoundError:
             pass
         except HttpResponseError:
@@ -106,7 +106,18 @@ class HrMemoryStore:
 
 
 def _profile_details(store: object) -> str:
-    definition = getattr(store, "definition", None)
-    options = getattr(definition, "options", None)
+    options = _options(store)
     details = getattr(options, "user_profile_details", None)
     return str(details or "").strip()
+
+
+def _memory_features_enabled(store: object) -> bool:
+    options = _options(store)
+    return bool(getattr(options, "user_profile_enabled", False)) and bool(
+        getattr(options, "chat_summary_enabled", False)
+    )
+
+
+def _options(store: object) -> object:
+    definition = getattr(store, "definition", None)
+    return getattr(definition, "options", None)
