@@ -83,7 +83,8 @@ jobs:
 
           echo "Deleting Cognitive Services / Foundry account ${account} in ${rg}…"
           if az cognitiveservices account show -g "${rg}" -n "${account}" >/dev/null 2>&1; then
-            az cognitiveservices account delete -g "${rg}" -n "${account}" --yes
+            # cognitiveservices account delete does not accept --yes
+            az cognitiveservices account delete -g "${rg}" -n "${account}"
             echo "Account delete requested."
           else
             echo "Account ${account} is already absent."
