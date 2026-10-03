@@ -1,10 +1,10 @@
-name: AzureFoundry-002-Agent-WebSearch-Delete
+name: AzureFoundry-007-Agent-HRAssistant-Delete
 
 on:
   workflow_dispatch:
     inputs:
       still_run:
-        description: Delete web-search-agent from Azure Foundry? Confirm with yes.
+        description: Delete hr-assistant-agent from Azure Foundry? Confirm with yes.
         required: true
         type: choice
         default: "no"
@@ -16,12 +16,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: foundry-web-search-agent
+  group: foundry-hr-assistant-agent
   cancel-in-progress: false
 
 jobs:
   delete:
-    name: Delete web-search-agent
+    name: Delete hr-assistant-agent
     if: inputs.still_run == 'yes'
     runs-on: ubuntu-latest
     env:
@@ -38,12 +38,12 @@ jobs:
           fi
           endpoint="${FOUNDRY_PROJECT_ENDPOINT%/}"
           status=$(curl -sS -o /tmp/agent-delete.json -w "%{http_code}" \
-            -X DELETE "${endpoint}/agents/web-search-agent?api-version=v1" \
+            -X DELETE "${endpoint}/agents/hr-assistant-agent?api-version=v1" \
             -H "api-key: ${FOUNDRY_API_KEY}" \
             -H "Accept: application/json")
           echo "status=${status}"
           if [ "${status}" = "404" ]; then
-            echo "web-search-agent is already absent."
+            echo "hr-assistant-agent is already absent."
             exit 0
           fi
           python3 -c 'import pathlib; print(pathlib.Path("/tmp/agent-delete.json").read_text()[:2000])'

@@ -1,5 +1,5 @@
 import { HttpErrorResponse, HttpEventType, HttpResponse } from '@angular/common/http';
-import { Component, ElementRef, OnDestroy, OnInit, ViewChild, effect, inject, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { briefById } from './briefs';
@@ -59,6 +59,7 @@ export class HrDailyBriefComponent implements OnInit, OnDestroy {
   readonly datasetMessage = signal('');
   readonly datasetStatus = signal<HrSampleDatasetStatusResponse | undefined>(undefined);
   readonly copiedJoinerId = signal('');
+  readonly memoryHelpOpen = signal(false);
 
   private historySkip = 0;
   private joinerId = '';
@@ -99,6 +100,28 @@ export class HrDailyBriefComponent implements OnInit, OnDestroy {
 
   populateMemory(): void {
     this.runPopulate(true, 'memory', 'Seeding Azure Foundry Memory for joiners…');
+  }
+
+  openMemoryHelp(): void {
+    this.memoryHelpOpen.set(true);
+  }
+
+  closeMemoryHelp(): void {
+    this.memoryHelpOpen.set(false);
+  }
+
+  scrollHelpSection(event: Event, sectionId: string): void {
+    event.preventDefault();
+    const root = (event.currentTarget as HTMLElement | null)?.closest('.help-dialog');
+    const target = root?.querySelector(`#${sectionId}`) as HTMLElement | null;
+    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.memoryHelpOpen()) {
+      this.closeMemoryHelp();
+    }
   }
 
   clearFoundryMemory(): void {

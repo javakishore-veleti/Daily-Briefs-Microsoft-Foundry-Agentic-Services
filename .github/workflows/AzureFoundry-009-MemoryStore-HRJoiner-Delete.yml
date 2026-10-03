@@ -1,10 +1,14 @@
-name: AzureFoundry-002-Agent-WebSearch-Delete
+name: AzureFoundry-009-MemoryStore-HRJoiner-Delete
 
 on:
   workflow_dispatch:
     inputs:
+      memory_store_name:
+        description: Memory store name to delete
+        required: true
+        default: hr-joiner-memory
       still_run:
-        description: Delete web-search-agent from Azure Foundry? Confirm with yes.
+        description: Delete the HR memory store from Azure Foundry? Confirm with yes.
         required: true
         type: choice
         default: "no"
@@ -16,19 +20,20 @@ permissions:
   contents: read
 
 concurrency:
-  group: foundry-web-search-agent
+  group: foundry-hr-memory-store
   cancel-in-progress: false
 
 jobs:
   delete:
-    name: Delete web-search-agent
+    name: Delete hr-joiner-memory
     if: inputs.still_run == 'yes'
     runs-on: ubuntu-latest
     env:
       FOUNDRY_PROJECT_ENDPOINT: ${{ secrets.FOUNDRY_PROJECT_ENDPOINT }}
       FOUNDRY_API_KEY: ${{ secrets.FOUNDRY_API_KEY }}
+      MEMORY_STORE_NAME: ${{ inputs.memory_store_name }}
     steps:
-      - name: Delete agent
+      - name: Delete memory store
         shell: bash
         run: |
           set -euo pipefail
@@ -37,16 +42,18 @@ jobs:
             exit 1
           fi
           endpoint="${FOUNDRY_PROJECT_ENDPOINT%/}"
-          status=$(curl -sS -o /tmp/agent-delete.json -w "%{http_code}" \
-            -X DELETE "${endpoint}/agents/web-search-agent?api-version=v1" \
+          FEATURE_HEADER="Foundry-Features: MemoryStores=V1Preview"
+          status=$(curl -sS -o /tmp/memory-delete.json -w "%{http_code}" \
+            -X DELETE "${endpoint}/memory_stores/${MEMORY_STORE_NAME}?api-version=v1" \
             -H "api-key: ${FOUNDRY_API_KEY}" \
+            -H "${FEATURE_HEADER}" \
             -H "Accept: application/json")
           echo "status=${status}"
           if [ "${status}" = "404" ]; then
-            echo "web-search-agent is already absent."
+            echo "memory store ${MEMORY_STORE_NAME} is already absent."
             exit 0
           fi
-          python3 -c 'import pathlib; print(pathlib.Path("/tmp/agent-delete.json").read_text()[:2000])'
+          python3 -c 'import pathlib; print(pathlib.Path("/tmp/memory-delete.json").read_text()[:2000])'
           if [ "${status}" -lt 200 ] || [ "${status}" -ge 300 ]; then
             exit 1
           fi

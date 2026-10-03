@@ -268,11 +268,16 @@ Middleware startup also ensures agents and the memory store when the app starts,
 | Workflow | Creates / updates | Confirmation |
 | --- | --- | --- |
 | `AzureFoundry-001-Agent-WebSearch-Create.yml` | `web-search-agent` | `still_run` default `no` |
-| `AzureFoundry-002-Agent-WebSearch-Delete.yml` | Deletes `web-search-agent` | None (always runs) |
+| `AzureFoundry-002-Agent-WebSearch-Delete.yml` | Deletes `web-search-agent` | `still_run` default `no` |
 | `AzureFoundry-003-Agent-HRAssistant-Create.yml` | `hr-assistant-agent` | `still_run` default `no` |
 | `AzureFoundry-004-Agent-Weather-Create.yml` | `weather-agent` + OpenAPI weather tool | `still_run` default `no` |
 | `AzureFoundry-005-MemoryStore-HRJoiner-Create.yml` | Memory store `hr-joiner-memory` | `still_run` default `no` |
 | `AzureFoundry-006-Memory-RBAC-Assign.yml` | Discovers account / project / agent identities on the Foundry account and assigns **Foundry User** + **Cognitive Services OpenAI User** to each | `still_run` default `no` |
+| `AzureFoundry-007-Agent-HRAssistant-Delete.yml` | Deletes `hr-assistant-agent` | `still_run` default `no` |
+| `AzureFoundry-008-Agent-Weather-Delete.yml` | Deletes `weather-agent` | `still_run` default `no` |
+| `AzureFoundry-009-MemoryStore-HRJoiner-Delete.yml` | Deletes memory store `hr-joiner-memory` | `still_run` default `no` |
+| `AzureFoundry-010-Teardown-Project-Resources.yml` | Soft teardown: deletes all three agents + HR memory store | `still_run` default `no` |
+| `AzureFoundry-011-Teardown-Foundry-Account.yml` | Hard teardown: deletes Foundry account **or** whole resource group (stops billing) | `still_run` default `no` |
 
 **How Azure setup is meant to work for every developer**
 
@@ -284,16 +289,26 @@ Middleware startup also ensures agents and the memory store when the app starts,
 | 4 | Action **006** | Assign memory RBAC on the Foundry account identities (`still_run=yes`) |
 | 5 | Local `.env` | Same endpoint, API key, model, and embedding names as the team Foundry project |
 
+**How Azure teardown is meant to work (reusable, not ad-hoc)**
+
+| Step | Action | What |
+| --- | --- | --- |
+| A | **010** (`still_run=yes`) | Soft clean: remove agents + `hr-joiner-memory` from the project (API key secrets) |
+| B | **011** (`still_run=yes`, mode `account` or `resource_group`) | Hard clean: delete the Foundry / AI Services account, or the whole resource group — use this before travel / overnight to stop account charges |
+| C | Individual **002 / 007 / 008 / 009** | Delete one agent or the memory store when you only need a partial reset |
+
+After **011**, recreate the Foundry account/project/model deployments in Azure, refresh secrets if endpoints/keys change, then run create Actions **001 → 006** again.
+
 Do **not** rely on one-off laptop `az role assignment` for day-to-day setup. That was only used while debugging the memory **401**. The supported path for other developers is **workflow 006**.
 
 **Repository secrets**
 
 | Secret | Used by |
 | --- | --- |
-| `FOUNDRY_PROJECT_ENDPOINT` | Agent + memory workflows (001–005) |
-| `FOUNDRY_API_KEY` | Agent + memory workflows (001–005) |
-| `AZURE_CREDENTIALS` | 006 — Azure service principal JSON for `azure/login` (needs permission to assign roles on the Foundry account; Reader on the subscription helps login) |
-| `FOUNDRY_ACCOUNT_RESOURCE_ID` | 006 — ARM id of the Foundry / AI Services account |
+| `FOUNDRY_PROJECT_ENDPOINT` | Agent + memory create/delete/teardown workflows (001–005, 007–010) |
+| `FOUNDRY_API_KEY` | Agent + memory create/delete/teardown workflows (001–005, 007–010) |
+| `AZURE_CREDENTIALS` | 006 + **011** — Azure service principal JSON for `azure/login` (needs permission to assign roles / delete the Foundry account or resource group; Reader on the subscription helps login) |
+| `FOUNDRY_ACCOUNT_RESOURCE_ID` | 006 + **011** — ARM id of the Foundry / AI Services account |
 | `FOUNDRY_PROJECT_PRINCIPAL_ID` | 006 optional — extra principal object id to include if discovery misses one |
 
 What Actions **do not** replace: deploying chat/embedding models in Foundry, creating the Foundry project/account itself, or fixing a bad API key. After 006, wait a few minutes for RBAC to propagate before HR memory update/search works.

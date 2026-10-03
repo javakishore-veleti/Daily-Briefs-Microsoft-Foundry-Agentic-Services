@@ -1,7 +1,12 @@
 @if (!joinerIdPresent()) {
   <section class="hr-list">
     <header class="conversation-head">
-      <h1>{{ menu?.label }}</h1>
+      <div class="title-row">
+        <h1>{{ menu?.label }}</h1>
+        <button type="button" class="help-link" (click)="openMemoryHelp()">
+          Understand HR Brief — Azure Foundry Memory behavior
+        </button>
+      </div>
       <p>{{ menu?.description }}</p>
     </header>
 
@@ -246,4 +251,244 @@
       </section>
     </section>
   </section>
+}
+
+@if (memoryHelpOpen()) {
+  <div
+    class="help-overlay"
+    role="presentation"
+    (click)="closeMemoryHelp()"
+  >
+    <div
+      class="help-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="hr-memory-help-title"
+      (click)="$event.stopPropagation()"
+    >
+      <header class="help-dialog-head">
+        <div>
+          <p class="help-kicker">HR Daily Brief</p>
+          <h2 id="hr-memory-help-title">Understand HR Brief — Azure Foundry Memory behavior</h2>
+        </div>
+        <button type="button" class="help-close" (click)="closeMemoryHelp()" aria-label="Close help">
+          Close
+        </button>
+      </header>
+
+      <div class="help-dialog-body">
+        <nav class="help-toc" aria-label="Help sections">
+          <a href="#help-overview" (click)="scrollHelpSection($event, 'help-overview')">Overview</a>
+          <a href="#help-why-rows" (click)="scrollHelpSection($event, 'help-why-rows')">Why many memory rows</a>
+          <a href="#help-foundry-settings" (click)="scrollHelpSection($event, 'help-foundry-settings')">Foundry store settings</a>
+          <a href="#help-env" (click)="scrollHelpSection($event, 'help-env')">App environment variables</a>
+          <a href="#help-populate" (click)="scrollHelpSection($event, 'help-populate')">Populate &amp; clear actions</a>
+          <a href="#help-scope" (click)="scrollHelpSection($event, 'help-scope')">Scope &amp; copy id</a>
+          <a href="#help-turn" (click)="scrollHelpSection($event, 'help-turn')">Chat turn write policy</a>
+          <a href="#help-guidance" (click)="scrollHelpSection($event, 'help-guidance')">Guidance</a>
+        </nav>
+
+        <article class="help-sections">
+          <section id="help-overview">
+            <h3>Overview</h3>
+            <p>
+              HR Daily Brief stores joiner records in <strong>MongoDB</strong> and preference facts in
+              Azure Foundry Memory store <code>hr-joiner-memory</code>. Each joiner is isolated by
+              <code>scope = joiner_info_id</code> (the UUID shown next to each list row).
+            </p>
+            <p>
+              Preference answers in chat come from Foundry Memory search hits for that scope—not from
+              re-reading the left-hand joiner card on every reply.
+            </p>
+          </section>
+
+          <section id="help-why-rows">
+            <h3>Why many memory rows appear for one joiner</h3>
+            <p>
+              The app typically writes <strong>one</strong> profile update per joiner (food preferences,
+              personal interests, and resume text). Because the store has
+              <strong>User profile</strong> extraction enabled, Foundry’s chat model splits that text into
+              several discrete <code>user_profile</code> facts—one row per fact in the Memories tab.
+            </p>
+            <ul>
+              <li>Same <code>Scope</code> on every row = same joiner.</li>
+              <li>Same timestamp usually means they came from a single populate / cold-miss seed.</li>
+              <li>This is expected Foundry behavior, not duplicate Mongo writes.</li>
+            </ul>
+            <p>
+              Splits help search return the relevant fact (for example food vs resume). More resume detail
+              can produce more rows and slightly higher embedding cost.
+            </p>
+          </section>
+
+          <section id="help-foundry-settings">
+            <h3>Azure Foundry Memory store settings</h3>
+            <p>
+              On the store <strong>Details</strong> page, memory features are set at create time and
+              cannot be changed in the portal afterward. Recreate the store (Clear Azure Foundry Memory,
+              or middleware ensure) to change them.
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Setting</th>
+                  <th>Effect</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>User profile</td>
+                  <td>When on, extracts many <code>user_profile</code> fact rows (the split).</td>
+                </tr>
+                <tr>
+                  <td>User profile details</td>
+                  <td>
+                    Categories to extract. This project defaults to
+                    <em>food preferences, personal interests, and resumes</em>.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Chat summary</td>
+                  <td>Summarizes conversations into <code>chat_summary</code> items when enabled.</td>
+                </tr>
+                <tr>
+                  <td>Procedural memory</td>
+                  <td>Learns reusable how-to / step knowledge when enabled.</td>
+                </tr>
+                <tr>
+                  <td>Chat / embedding models</td>
+                  <td>
+                    Chat model drives extraction; embedding model powers search
+                    (<code>text-embedding-3-small</code> by default).
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              Middleware currently creates the store with user profile and chat summary
+              <strong>enabled</strong>. Turning user profile off would stop multi-row splits but would
+              also remove structured preference extraction unless storage/search logic changes.
+            </p>
+            <p>
+              The SDK also exposes <code>create_memory</code> to insert a single item by
+              <code>kind</code> and <code>scope</code> if you ever need one row without extraction.
+            </p>
+          </section>
+
+          <section id="help-env">
+            <h3>App environment variables</h3>
+            <p>Configured in middleware <code>.env</code> (restart middleware after changes):</p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Variable</th>
+                  <th>Effect</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>HR_MEMORY_STORE_NAME</code></td>
+                  <td>Memory store name. Default <code>hr-joiner-memory</code>.</td>
+                </tr>
+                <tr>
+                  <td><code>HR_MEMORY_PROFILE_DETAILS</code></td>
+                  <td>
+                    Text passed into Foundry <code>user_profile_details</code>. Narrower categories
+                    usually mean fewer extracted fact types.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>HR_MEMORY_MAX_MEMORIES</code></td>
+                  <td>
+                    Cap on memory hits returned per chat search (default <code>5</code>). Does
+                    <strong>not</strong> stop splitting on write.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>HR_MEMORY_STORE_TURNS</code></td>
+                  <td>
+                    When <code>true</code>, may store compact Q&amp;A turns after useful replies.
+                    Default <code>false</code>.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>MODEL_DEPLOYMENT_NAME</code></td>
+                  <td>Chat deployment used by agents / memory chat model.</td>
+                </tr>
+                <tr>
+                  <td><code>TEXT_EMBEDDING_MODEL_NAME</code></td>
+                  <td>Embedding deployment for memory search.</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section id="help-populate">
+            <h3>Populate &amp; clear actions</h3>
+            <ul>
+              <li>
+                <strong>Populate 1,000 joiners in MongoDB</strong> — generates/loads joiners into Mongo only.
+                Does not seed Foundry Memory unless you also run the memory action.
+              </li>
+              <li>
+                <strong>Populate Azure Foundry Memory</strong> — writes preference profiles into Foundry for
+                joiners already in Mongo (one update per joiner; Foundry may split into many facts).
+              </li>
+              <li>
+                <strong>Clear Azure Foundry Memory</strong> — deletes and recreates
+                <code>hr-joiner-memory</code>. Mongo joiner rows are unchanged.
+              </li>
+            </ul>
+            <p>
+              Local Docker volume wipes empty Mongo. Foundry Memory lives in Azure and must be cleared
+              separately (button above or recreate the store).
+            </p>
+          </section>
+
+          <section id="help-scope">
+            <h3>Scope &amp; copy id</h3>
+            <p>
+              The copy icon next to each joiner copies <code>joiner_info_id</code>. In Azure Foundry →
+              Memory → <code>hr-joiner-memory</code> → Memories, set
+              <code>Scope = &lt;copied value&gt;</code> to inspect that joiner’s facts only.
+            </p>
+          </section>
+
+          <section id="help-turn">
+            <h3>Chat turn write policy</h3>
+            <ol>
+              <li>Search memory for the question (<code>scope = joiner_info_id</code>).</li>
+              <li>
+                On a <strong>cold miss</strong> (no hits), seed preferences from Mongo once, then search again.
+                Existing hits are not re-written every turn.
+              </li>
+              <li>
+                Call the HR agent with a slim joiner header when memory already has hits; fuller record on
+                cold miss.
+              </li>
+              <li>
+                Optional turn memory is off by default (<code>HR_MEMORY_STORE_TURNS=false</code>).
+              </li>
+            </ol>
+          </section>
+
+          <section id="help-guidance">
+            <h3>Guidance</h3>
+            <ul>
+              <li>Keep user-profile splits for preference / resume Q&amp;A quality.</li>
+              <li>Keep turn writes off unless you need conversation recall.</li>
+              <li>
+                To reduce fact volume: shorten resumes in the dataset, narrow
+                <code>HR_MEMORY_PROFILE_DETAILS</code>, then clear and re-seed memory.
+              </li>
+              <li>
+                To stop splits entirely: recreate the store with user profile disabled (code change + clear),
+                accepting less structured preference recall.
+              </li>
+            </ul>
+          </section>
+        </article>
+      </div>
+    </div>
+  </div>
 }

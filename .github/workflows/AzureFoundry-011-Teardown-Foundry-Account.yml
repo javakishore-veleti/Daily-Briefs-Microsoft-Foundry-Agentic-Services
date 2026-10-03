@@ -1,0 +1,94 @@
+name: AzureFoundry-011-Teardown-Foundry-Account
+
+# Hard teardown for cost control: deletes the Foundry / AI Services account,
+# or the whole resource group. Re-create account/project/models before running create Actions again.
+
+on:
+  workflow_dispatch:
+    inputs:
+      teardown_mode:
+        description: What to delete (account stops Foundry billing; resource_group removes everything in that RG)
+        required: true
+        type: choice
+        default: account
+        options:
+          - account
+          - resource_group
+      still_run:
+        description: Permanently delete Azure Foundry account or resource group? Confirm with yes.
+        required: true
+        type: choice
+        default: "no"
+        options:
+          - "no"
+          - "yes"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: foundry-account-teardown
+  cancel-in-progress: false
+
+jobs:
+  teardown:
+    name: Delete Foundry account or resource group
+    if: inputs.still_run == 'yes'
+    runs-on: ubuntu-latest
+    env:
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+      FOUNDRY_ACCOUNT_RESOURCE_ID: ${{ secrets.FOUNDRY_ACCOUNT_RESOURCE_ID }}
+      TEARDOWN_MODE: ${{ inputs.teardown_mode }}
+    steps:
+      - name: Check secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${AZURE_CREDENTIALS}" ] || [ -z "${FOUNDRY_ACCOUNT_RESOURCE_ID}" ]; then
+            echo "Add AZURE_CREDENTIALS and FOUNDRY_ACCOUNT_RESOURCE_ID as repository secrets."
+            exit 1
+          fi
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          allow-no-subscriptions: true
+
+      - name: Delete account or resource group
+        shell: bash
+        run: |
+          set -euo pipefail
+          scope="${FOUNDRY_ACCOUNT_RESOURCE_ID}"
+          subscription_id=$(python3 -c "import os; print(os.environ['FOUNDRY_ACCOUNT_RESOURCE_ID'].split('/')[2])")
+          rg=$(python3 -c "import os; p=os.environ['FOUNDRY_ACCOUNT_RESOURCE_ID'].split('/'); print(p[p.index('resourceGroups')+1])")
+          account=$(python3 -c "import os; p=os.environ['FOUNDRY_ACCOUNT_RESOURCE_ID'].split('/'); print(p[p.index('accounts')+1])")
+          az account set --subscription "${subscription_id}"
+
+          echo "subscription=${subscription_id}"
+          echo "resource_group=${rg}"
+          echo "account=${account}"
+          echo "teardown_mode=${TEARDOWN_MODE}"
+
+          echo "=== resources currently in ${rg} ==="
+          az resource list -g "${rg}" --query "[].{name:name,type:type}" -o table || true
+
+          if [ "${TEARDOWN_MODE}" = "resource_group" ]; then
+            echo "Deleting resource group ${rg} (no wait)…"
+            az group delete -n "${rg}" --yes --no-wait
+            echo "Resource group delete accepted. Azure will finish asynchronously."
+            exit 0
+          fi
+
+          echo "Deleting Cognitive Services / Foundry account ${account} in ${rg}…"
+          if az cognitiveservices account show -g "${rg}" -n "${account}" >/dev/null 2>&1; then
+            az cognitiveservices account delete -g "${rg}" -n "${account}" --yes
+            echo "Account delete requested."
+          else
+            echo "Account ${account} is already absent."
+          fi
+
+          echo "=== remaining resources in ${rg} ==="
+          az resource list -g "${rg}" --query "[].{name:name,type:type}" -o table || true
+          echo "Hard teardown (account mode) complete."
