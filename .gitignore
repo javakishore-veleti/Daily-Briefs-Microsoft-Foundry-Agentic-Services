@@ -224,3 +224,6 @@ __marimo__/
 
 # Local HR sample-dataset population marker (per machine)
 DataSets/HR-Brief/New-Joinees/_population_state.json
+
+# Local notebook execution venv
+**/A2A/**/.notebook_venv/
