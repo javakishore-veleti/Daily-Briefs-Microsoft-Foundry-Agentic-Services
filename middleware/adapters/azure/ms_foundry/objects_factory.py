@@ -3,7 +3,7 @@ import urllib.error
 import urllib.request
 from typing import TYPE_CHECKING, ClassVar
 
-from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
+from azure.core.exceptions import HttpResponseError, ResourceNotFoundError, ServiceRequestError
 from azure.ai.projects.models import (
     AgentDetails,
     AgentVersionDetails,
@@ -37,32 +37,55 @@ class ObjectsFactory:
         self.name = "ObjectsFactory"
         self.description = "A factory that can create objects"
         self.objects = {}
+        self._foundry_unreachable = False
 
     def init(self) -> None:
-        self.get_web_search_adapter()
-        self.get_weather_info_adapter()
-        self.get_hr_assistant_adapter()
+        logger = get_logger(__name__)
+        for label, getter in (
+            ("web_search", self.get_web_search_adapter),
+            ("weather_info", self.get_weather_info_adapter),
+            ("hr_assistant", self.get_hr_assistant_adapter),
+        ):
+            try:
+                getter()
+            except Exception:
+                logger.exception(
+                    "Azure Foundry %s adapter unavailable; continuing application startup",
+                    label,
+                )
 
     def init_ms_foundry_objects(self):
         self._ensure_agent(AGENT_NAME_WEB_SEARCH, self._web_search_agent_definition(), "web_seach_agent")
 
+    def _mark_foundry_unreachable(self, reason: str) -> None:
+        if self._foundry_unreachable:
+            return
+        self._foundry_unreachable = True
+        get_logger(__name__).warning("Azure Foundry marked unavailable: %s", reason)
+
     def _ensure_clients(self) -> str:
         if "open_ai_client" in self.objects:
             return AppConfig.get_instance().get_foundry_api_key()
+        if self._foundry_unreachable:
+            raise RuntimeError("Azure Foundry already marked unavailable")
 
         config = AppConfig.get_instance()
         project_endpoint = config.get_foundry_project_endpoint().rstrip("/")
         openai_base_url = f"{project_endpoint}/openai/v1"
-        ms_foundry_project_client = AIProjectClient(
-            endpoint=project_endpoint,
-            credential=DefaultAzureCredential(),
-            allow_preview=True,
-        )
-        api_key = config.get_foundry_api_key()
-        client_kwargs = {"base_url": openai_base_url}
-        if api_key:
-            client_kwargs["api_key"] = api_key
-        open_ai_client = ms_foundry_project_client.get_openai_client(**client_kwargs)
+        try:
+            ms_foundry_project_client = AIProjectClient(
+                endpoint=project_endpoint,
+                credential=DefaultAzureCredential(),
+                allow_preview=True,
+            )
+            api_key = config.get_foundry_api_key()
+            client_kwargs = {"base_url": openai_base_url}
+            if api_key:
+                client_kwargs["api_key"] = api_key
+            open_ai_client = ms_foundry_project_client.get_openai_client(**client_kwargs)
+        except Exception as error:
+            self._mark_foundry_unreachable(f"client init failed for {project_endpoint}: {error}")
+            raise
         get_logger(__name__).info(
             "foundry_project=%s openai_base_url=%s",
             project_endpoint,
@@ -75,10 +98,24 @@ class ObjectsFactory:
     def _ensure_agent(self, agent_name: str, definition: PromptAgentDefinition, store_key: str) -> None:
         if store_key in self.objects:
             return
-
-        api_key = self._ensure_clients()
-        project_client = self.get_ms_foundry_project_client()
         logger = get_logger(__name__)
+        if self._foundry_unreachable:
+            logger.warning(
+                "agent_name=%s skipped; Azure Foundry already marked unavailable",
+                agent_name,
+            )
+            return
+
+        try:
+            api_key = self._ensure_clients()
+        except Exception:
+            logger.warning(
+                "agent_name=%s skipped because Azure Foundry clients are unavailable",
+                agent_name,
+            )
+            return
+
+        project_client = self.get_ms_foundry_project_client()
         try:
             agent: AgentDetails | AgentVersionDetails = project_client.agents.get(agent_name)
             if self._agent_needs_version_update(agent_name, agent):
@@ -90,14 +127,27 @@ class ObjectsFactory:
             else:
                 logger.info("agent_name=%s found", agent_name)
         except ResourceNotFoundError:
-            agent = project_client.agents.create_version(
-                agent_name=agent_name,
-                definition=definition,
-            )
-            logger.info("agent_name=%s created", agent_name)
+            try:
+                agent = project_client.agents.create_version(
+                    agent_name=agent_name,
+                    definition=definition,
+                )
+                logger.info("agent_name=%s created", agent_name)
+            except ServiceRequestError as error:
+                self._mark_foundry_unreachable(f"agent create unreachable: {error}")
+                return
+            except HttpResponseError:
+                logger.exception(
+                    "agent_name=%s create failed; continuing without Azure agent",
+                    agent_name,
+                )
+                return
+        except ServiceRequestError as error:
+            self._mark_foundry_unreachable(f"agent get unreachable: {error}")
+            return
         except HttpResponseError:
             logger.exception("agent_name=%s unavailable via credential", agent_name)
-            if api_key:
+            if api_key and not self._foundry_unreachable:
                 self._create_agent_with_api_key(api_key, agent_name, definition)
             return
 
@@ -170,6 +220,9 @@ class ObjectsFactory:
                 error.code,
                 detail[:500],
             )
+            return
+        except urllib.error.URLError as error:
+            self._mark_foundry_unreachable(f"agent create via api-key unreachable: {error}")
             return
         logger.info("agent_name=%s created", agent_name)
 
@@ -271,16 +324,25 @@ class ObjectsFactory:
         from middleware.adapters.azure.ms_foundry.main_web_search import WebSearchAdapter
 
         if "web_search_adapter" not in self.objects:
-            self.init_ms_foundry_objects()
-            web_search_adapter = WebSearchAdapter()
-            self.objects["web_search_adapter"] = web_search_adapter
+            try:
+                self.init_ms_foundry_objects()
+            except Exception:
+                get_logger(__name__).exception(
+                    "web search Azure agent setup failed; registering adapter anyway",
+                )
+            self.objects["web_search_adapter"] = WebSearchAdapter()
         return self.objects["web_search_adapter"]
 
     def get_weather_info_adapter(self) -> "WeatherInfoAdapter":
         from middleware.adapters.azure.ms_foundry.weather_info.main import WeatherInfoAdapter
 
         if "weather_info_adapter" not in self.objects:
-            self._ensure_agent(AGENT_NAME_WEATHER, self._weather_agent_definition(), "weather_agent")
+            try:
+                self._ensure_agent(AGENT_NAME_WEATHER, self._weather_agent_definition(), "weather_agent")
+            except Exception:
+                get_logger(__name__).exception(
+                    "weather Azure agent setup failed; registering adapter anyway",
+                )
             self.objects["weather_info_adapter"] = WeatherInfoAdapter()
         return self.objects["weather_info_adapter"]
 
@@ -289,9 +351,14 @@ class ObjectsFactory:
         from middleware.adapters.azure.ms_foundry.hr_assistant_agent.memory_store import HrMemoryStore
 
         if "hr_assistant_adapter" not in self.objects:
-            self._ensure_agent(AGENT_NAME_HR_ASSISTANT, self._hr_assistant_agent_definition(), "hr_assistant_agent")
-            if "ms_foundry_project_client" in self.objects:
-                HrMemoryStore().ensure(self.get_ms_foundry_project_client())
+            try:
+                self._ensure_agent(AGENT_NAME_HR_ASSISTANT, self._hr_assistant_agent_definition(), "hr_assistant_agent")
+                if "ms_foundry_project_client" in self.objects:
+                    HrMemoryStore().ensure(self.get_ms_foundry_project_client())
+            except Exception:
+                get_logger(__name__).exception(
+                    "HR Azure agent/memory setup failed; registering adapter anyway",
+                )
             self.objects["hr_assistant_adapter"] = HrAssistantAdapter()
         return self.objects["hr_assistant_adapter"]
 

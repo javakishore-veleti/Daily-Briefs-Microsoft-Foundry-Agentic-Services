@@ -4,7 +4,7 @@ from azure.ai.projects.models import (
     MemoryStoreDefaultDefinition,
     MemoryStoreDefaultOptions,
 )
-from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
+from azure.core.exceptions import HttpResponseError, ResourceNotFoundError, ServiceRequestError
 
 from middleware.common.dtos.app_config import AppConfig
 from middleware.common.utils.logger_util import get_logger, log_methods
@@ -34,7 +34,7 @@ class HrMemoryStore:
             get_logger(__name__).info("memory_store=%s replaced so profile features match", self.name)
         except ResourceNotFoundError:
             pass
-        except HttpResponseError:
+        except (HttpResponseError, ServiceRequestError):
             get_logger(__name__).exception("memory_store=%s lookup failed", self.name)
             return
         try:
@@ -52,7 +52,7 @@ class HrMemoryStore:
                 description="Memories for each new joiner in the HR daily brief",
             )
             get_logger(__name__).info("memory_store=%s created", self.name)
-        except HttpResponseError:
+        except (HttpResponseError, ServiceRequestError):
             get_logger(__name__).exception("memory_store=%s create failed", self.name)
 
     def clear_all(self, project_client: AIProjectClient) -> None:

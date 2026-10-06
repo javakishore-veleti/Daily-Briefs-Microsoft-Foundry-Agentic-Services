@@ -15,12 +15,34 @@ fi
 
 PORT=${API_PORT:-8000}
 HOST=${API_HOST:-0.0.0.0}
+# Azure Foundry bootstrap can take 20s+ when resources are unreachable.
+READY_ATTEMPTS=${MIDDLEWARE_READY_ATTEMPTS:-60}
+READY_SLEEP=${MIDDLEWARE_READY_SLEEP:-1}
+
+listener_pid() {
+  lsof -nP -tiTCP:"${PORT}" -sTCP:LISTEN 2>/dev/null | head -n 1
+}
+
+port_ready() {
+  curl -fsS "http://127.0.0.1:${PORT}/openapi.json" >/dev/null 2>&1
+}
 
 is_running() {
-  [ -f "$PID_FILE" ] || return 1
-  pid=$(cat "$PID_FILE")
-  [ -n "$pid" ] || return 1
-  kill -0 "$pid" 2>/dev/null
+  if [ -f "$PID_FILE" ]; then
+    pid=$(cat "$PID_FILE")
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+      return 0
+    fi
+  fi
+  listener=$(listener_pid)
+  [ -n "$listener" ]
+}
+
+remember_listener_pid() {
+  listener=$(listener_pid)
+  if [ -n "$listener" ]; then
+    echo "$listener" >"$PID_FILE"
+  fi
 }
 
 stop_tree() {
@@ -32,28 +54,43 @@ stop_tree() {
 }
 
 start() {
-  if is_running; then
+  if port_ready; then
+    remember_listener_pid
     echo "middleware is running (pid $(cat "$PID_FILE")) on ${HOST}:${PORT}"
+    echo "swagger http://127.0.0.1:${PORT}/docs"
     exit 0
   fi
   rm -f "$PID_FILE"
   uv run python main.py >"$LOG_FILE" 2>&1 &
-  echo $! >"$PID_FILE"
+  starter_pid=$!
+  echo "$starter_pid" >"$PID_FILE"
   i=0
-  while [ "$i" -lt 20 ]; do
-    if is_running && curl -fsS "http://127.0.0.1:${PORT}/openapi.json" >/dev/null 2>&1; then
+  while [ "$i" -lt "$READY_ATTEMPTS" ]; do
+    if port_ready; then
+      remember_listener_pid
       echo "middleware started (pid $(cat "$PID_FILE")) on ${HOST}:${PORT}"
       echo "swagger http://127.0.0.1:${PORT}/docs"
       exit 0
     fi
-    if ! is_running; then
-      echo "middleware failed to start. See ${LOG_FILE}"
-      exit 1
+    # uv may exit after spawning python; only fail once neither starter nor listener remains.
+    if ! kill -0 "$starter_pid" 2>/dev/null; then
+      listener=$(listener_pid)
+      if [ -z "$listener" ] && [ "$i" -ge 2 ]; then
+        echo "middleware failed to start. See ${LOG_FILE}"
+        exit 1
+      fi
     fi
     i=$((i + 1))
-    sleep 0.5
+    sleep "$READY_SLEEP"
   done
+  if port_ready; then
+    remember_listener_pid
+    echo "middleware started (pid $(cat "$PID_FILE")) on ${HOST}:${PORT}"
+    echo "swagger http://127.0.0.1:${PORT}/docs"
+    exit 0
+  fi
   echo "middleware started (pid $(cat "$PID_FILE")) but port ${PORT} is not ready yet. See ${LOG_FILE}"
+  exit 1
 }
 
 stop() {
@@ -62,14 +99,21 @@ stop() {
     echo "middleware is not running"
     exit 0
   fi
-  pid=$(cat "$PID_FILE")
-  stop_tree "$pid"
+  pid=$(cat "$PID_FILE" 2>/dev/null || true)
+  listener=$(listener_pid)
+  if [ -n "$pid" ]; then
+    stop_tree "$pid"
+  fi
+  if [ -n "$listener" ] && [ "$listener" != "${pid:-}" ]; then
+    stop_tree "$listener"
+  fi
   rm -f "$PID_FILE"
-  echo "middleware stopped (pid ${pid})"
+  echo "middleware stopped (pid ${pid:-$listener})"
 }
 
 status() {
-  if is_running; then
+  if port_ready || is_running; then
+    remember_listener_pid
     echo "middleware is running (pid $(cat "$PID_FILE")) on ${HOST}:${PORT}"
     echo "swagger http://127.0.0.1:${PORT}/docs"
     exit 0
